@@ -14,4 +14,4 @@ Edit `index.html` for band copy, upcoming shows, and album content. Styling is i
 
 The homepage uses the supplied image at `assets/dhak.png`. Photo areas are intentionally designed placeholders awaiting the band's images. No member identities, event dates, or contact details have been invented. The form only previews an inquiry locally; it does not send or store submissions. Google Fonts supplies Bengali and Latin typefaces, with system fallbacks when offline.
 
-This is a static site suitable for Vercel hosting. Deployment and a live form submission service are not configured in this local preview.
+This is a static site configured for Vercel hosting through `vercel.json`. Import the GitHub repository into Vercel, or run `npx vercel --prod` from this directory. No build step or environment variables are required. A live form submission service is not configured.
