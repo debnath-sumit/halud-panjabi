@@ -1,0 +1,16 @@
+# Local dependencies and build output
+node_modules/
+dist/
+.next/
+out/
+.vercel/
+
+# Secrets and local environment settings
+.env
+.env.*
+!.env.example
+
+# Logs and operating system files
+*.log
+.DS_Store
+Thumbs.db
