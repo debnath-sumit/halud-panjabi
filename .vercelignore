@@ -1,2 +1,4 @@
 README.md
 server.mjs
+tests/
+test-results/

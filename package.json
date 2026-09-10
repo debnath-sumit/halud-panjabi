@@ -2,5 +2,16 @@
   "name": "halud-panjabi",
   "version": "1.0.0",
   "private": true,
-  "scripts": { "dev": "node server.mjs", "start": "node server.mjs", "check": "node --check script.js && node --check server.mjs" }
+  "type": "module",
+  "scripts": {
+    "dev": "node server.mjs",
+    "start": "node server.mjs",
+    "check": "node --check script.js && node --check admin.js && node --check server.mjs",
+    "build": "node scripts/build.mjs",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "@vercel/blob": "^2.8.0",
+    "sharp": "^0.35.4"
+  }
 }

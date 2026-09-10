@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow, noarchive">
+  <meta name="referrer" content="same-origin">
+  <title>Band studio · Halud Panjabi</title>
+  <link rel="stylesheet" href="/admin.css">
+</head>
+<body>
+  <header class="studio-header"><a class="brand" href="/">✺ <span>HALUD PANJABI<small>BAND STUDIO</small></span></a><div class="header-actions"><a href="/" target="_blank" rel="noopener">View website ↗</a><button id="logout" class="quiet" hidden>Sign out</button></div></header>
+  <main>
+    <div id="notice" role="status" aria-live="polite">Opening the studio…</div>
+    <section id="login-panel" class="login-panel" hidden>
+      <div class="eyebrow">A LITTLE BEHIND THE SCENES</div><h1>Welcome to<br>the <em>band studio.</em></h1><p>Sign in to share the moments that bring us together.</p>
+      <form id="login-form"><label>Username<input name="username" autocomplete="username" required maxlength="100" autofocus></label><label>Password<input name="password" type="password" autocomplete="current-password" required maxlength="256"></label><button type="submit" class="primary">Sign in <span>→</span></button></form>
+    </section>
+    <section id="studio" hidden>
+      <div class="studio-intro"><div><div class="eyebrow">OUR MOMENTS, SHARED</div><h1>A home for <em>our memories.</em></h1><p>Photos and videos you publish here appear on the website.</p></div><span class="studio-flower" aria-hidden="true">✺</span></div>
+      <div class="upload-grid">
+        <form id="photo-form" class="panel"><div class="panel-heading"><span class="step">01</span><h2>Share a photo</h2></div><label>Photo title<input name="title" placeholder="A moment from Dashami" required maxlength="120"></label><label class="file-label">Choose a photo<input id="photo-file" name="photo" type="file" accept="image/jpeg,image/png,image/webp" required><span>JPEG, PNG or WebP · up to 20 MB</span></label><img id="photo-preview" class="photo-preview" alt="Selected photo preview" hidden><button type="submit" class="primary">Publish photo <span>↑</span></button><p class="hint">Photos are resized automatically for the website.</p></form>
+        <form id="video-form" class="panel"><div class="panel-heading"><span class="step">02</span><h2>Add a YouTube video</h2></div><label>Video title<input name="title" placeholder="The rhythm of Puja" required maxlength="120"></label><label>YouTube link<input name="url" type="url" placeholder="https://www.youtube.com/watch?v=…" required maxlength="2000"></label><p class="video-help">Share a performance, a rehearsal, or a favourite memory. Paste the video’s YouTube link here.</p><button type="submit" class="primary">Publish video <span>↑</span></button><p class="hint">Watch links, Shorts, and share links are supported.</p></form>
+      </div>
+      <div class="library-heading"><div><div class="eyebrow">LIVE ON THE WEBSITE</div><h2>Your collection <span id="item-count"></span></h2></div><button id="refresh" class="quiet">Refresh ↻</button></div>
+      <p id="empty" class="empty" hidden>Your collection starts here. Publish your first photo or video above.</p>
+      <div id="library" class="library"></div>
+    </section>
+  </main>
+  <script src="/admin.js" defer></script>
+</body>
+</html>
