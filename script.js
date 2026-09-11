@@ -16,6 +16,38 @@ document.querySelector('#booking-form').addEventListener('submit', event => {
   result.hidden = false;
 });
 
+const lightbox = document.querySelector('#photo-lightbox');
+let lightboxItems = []; let lightboxIndex = 0; let lightboxOpener;
+function renderLightbox() {
+  const item = lightboxItems[lightboxIndex];
+  const image = document.querySelector('#lightbox-image');
+  document.querySelector('#lightbox-error').hidden = true;
+  image.alt = item.name || item.title; image.src = item.url;
+  document.querySelector('#lightbox-title').textContent = item.name || item.title;
+  for (const field of ['role', 'note']) {
+    const element = document.querySelector(`#lightbox-${field}`); element.textContent = item[field] || ''; element.hidden = !item[field];
+  }
+  document.querySelector('#lightbox-count').textContent = `${lightboxIndex + 1} / ${lightboxItems.length}`;
+  document.querySelector('.lightbox-navigation').hidden = lightboxItems.length < 2;
+}
+function openLightbox(items, index, opener) {
+  lightboxItems = items; lightboxIndex = index; lightboxOpener = opener;
+  renderLightbox(); lightbox.showModal(); document.body.classList.add('lightbox-open'); document.querySelector('#lightbox-close').focus();
+}
+function stepLightbox(offset) { lightboxIndex = (lightboxIndex + offset + lightboxItems.length) % lightboxItems.length; renderLightbox(); }
+document.querySelector('#lightbox-close').addEventListener('click', () => lightbox.close());
+document.querySelector('#lightbox-previous').addEventListener('click', () => stepLightbox(-1));
+document.querySelector('#lightbox-next').addEventListener('click', () => stepLightbox(1));
+document.querySelector('#lightbox-image').addEventListener('error', () => { document.querySelector('#lightbox-error').hidden = false; });
+lightbox.addEventListener('click', event => { if (event.target === lightbox) lightbox.close(); });
+lightbox.addEventListener('keydown', event => {
+  if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') { event.preventDefault(); stepLightbox(event.key === 'ArrowRight' ? 1 : -1); }
+});
+lightbox.addEventListener('close', () => {
+  document.body.classList.remove('lightbox-open'); document.querySelector('#lightbox-image').removeAttribute('src');
+  lightboxOpener?.focus({ preventScroll: true }); lightboxItems = [];
+});
+
 async function loadMedia() {
   try {
     const response = await fetch('/api/media');
@@ -35,13 +67,14 @@ async function loadMedia() {
       const portrait = document.createElement('button'); portrait.type = 'button'; portrait.className = 'member-portrait';
       const noteId = `member-note-${index}`;
       portrait.setAttribute('aria-expanded', 'false'); portrait.setAttribute('aria-controls', noteId); portrait.setAttribute('aria-label', `About ${item.name}`);
+      portrait.setAttribute('aria-haspopup', 'dialog');
       const img = document.createElement('img'); img.src = item.url; img.alt = item.name; img.loading = 'lazy';
       const overlay = document.createElement('span'); overlay.className = 'member-note'; overlay.id = noteId; overlay.textContent = item.note; overlay.hidden = true;
-      const hint = document.createElement('span'); hint.className = 'member-hint'; hint.textContent = 'Get to know me ↗';
-      const reveal = open => { overlay.hidden = !open; portrait.setAttribute('aria-expanded', String(open)); portrait.classList.toggle('revealed', open); hint.textContent = open ? 'Close note ×' : 'Get to know me ↗'; };
+      const hint = document.createElement('span'); hint.className = 'member-hint'; hint.textContent = 'View portrait ↗';
+      const reveal = open => { overlay.hidden = !open; portrait.setAttribute('aria-expanded', String(open)); portrait.classList.toggle('revealed', open); hint.textContent = 'View portrait ↗'; };
       portrait.addEventListener('pointerenter', event => { if (event.pointerType === 'mouse') reveal(true); });
       portrait.addEventListener('pointerleave', event => { if (event.pointerType === 'mouse') reveal(false); });
-      portrait.addEventListener('click', () => reveal(overlay.hidden));
+      portrait.addEventListener('click', () => openLightbox(members, index, portrait));
       portrait.addEventListener('keydown', event => { if (event.key === 'Escape') { reveal(false); event.stopPropagation(); } });
       portrait.addEventListener('blur', () => reveal(false));
       const name = document.createElement('h3'); name.textContent = item.name;
@@ -52,9 +85,10 @@ async function loadMedia() {
     const videoGrid = document.querySelector('.video-grid');
     if (photos.length) albums.replaceChildren();
     if (videos.length) videoGrid.replaceChildren();
-    photos.forEach(item => {
+    photos.forEach((item, index) => {
       const article = document.createElement('article'); article.className = 'album';
-      const link = document.createElement('a'); link.className = 'published-photo'; link.href = item.url; link.target = '_blank'; link.rel = 'noopener'; link.setAttribute('aria-label', `View ${item.title} full size`);
+      const link = document.createElement('button'); link.type = 'button'; link.className = 'published-photo'; link.setAttribute('aria-label', `View ${item.title} full size`); link.setAttribute('aria-haspopup', 'dialog');
+      link.addEventListener('click', () => openLightbox(photos, index, link));
       const img = document.createElement('img'); img.src = item.url; img.alt = item.title; img.loading = 'lazy';
       const heading = document.createElement('h3'); heading.textContent = item.title;
       link.append(img); article.append(link, heading); albums.append(article);

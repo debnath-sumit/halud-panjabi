@@ -65,7 +65,7 @@ async function refresh() {
   $('#item-count').textContent = `(${mediaCount})`; $('#empty').hidden = mediaCount > 0;
   $('#member-count').textContent = `(${members.length})`; $('#members-empty').hidden = members.length > 0;
   for (const item of items) {
-    const article = document.createElement('article'); article.className = 'media-card';
+    const article = document.createElement('article'); article.className = 'media-card'; article.dataset.id = item.id;
     const img = document.createElement(item.kind === 'clips' ? 'video' : 'img');
     img.src = item.kind !== 'videos' ? item.url : `https://i.ytimg.com/vi/${item.videoId}/hqdefault.jpg`;
     if (item.kind === 'clips') { img.controls = true; img.playsInline = true; img.preload = 'metadata'; img.setAttribute('aria-label', item.title); }
@@ -81,7 +81,28 @@ async function refresh() {
       catch (error) { notice(error.message, 'error'); remove.disabled = false; }
     });
     content.append(type, heading);
-    if (item.kind === 'members') { const note = document.createElement('p'); note.className = 'member-summary'; note.textContent = item.note; content.append(note); }
+    if (item.kind === 'members') {
+      const note = document.createElement('p'); note.className = 'member-summary'; note.textContent = item.note; content.append(note);
+      const index = members.findIndex(member => member.id === item.id);
+      const order = document.createElement('div'); order.className = 'member-order-controls';
+      const position = document.createElement('span'); position.textContent = `Position ${index + 1}`; order.append(position);
+      for (const [offset, label, text] of [[-1, 'earlier', '↑ Earlier'], [1, 'later', '↓ Later']]) {
+        const button = document.createElement('button'); button.type = 'button'; button.className = 'quiet'; button.textContent = text; button.setAttribute('aria-label', `Move ${item.title} ${label}`); button.disabled = index + offset < 0 || index + offset >= members.length;
+        button.addEventListener('click', async () => {
+          const ids = members.map(member => member.id); [ids[index], ids[index + offset]] = [ids[index + offset], ids[index]];
+          $('#member-library').querySelectorAll('button').forEach(control => { control.disabled = true; });
+          notice('Saving band member order…');
+          try {
+            await request('/api/media', { method: 'PATCH', body: JSON.stringify({ kind: 'members', ids }) });
+            await refresh(); notice('Member order saved. The website now uses this order.', 'success');
+            const moved = [...$('#member-library').children].find(card => card.dataset.id === item.id);
+            moved?.querySelector('button:not(:disabled)')?.focus({ preventScroll: true });
+          } catch (error) { notice(error.message, 'error'); await refresh().catch(() => {}); }
+        });
+        order.append(button);
+      }
+      content.append(order);
+    }
     content.append(remove); article.append(img, content); $(item.kind === 'members' ? '#member-library' : '#library').append(article);
   }
 }

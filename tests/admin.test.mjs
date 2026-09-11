@@ -9,12 +9,15 @@ import { createVideoUploadHandler, MAX_VIDEO_BYTES } from '../api/video-upload.j
 import { authenticated, sessionCookie } from '../lib/auth.js';
 import { youtubeId, record, memberRecord } from '../lib/media.js';
 import { createLoginLimiter } from '../lib/storage.js';
+import { applyMemberOrder } from '../lib/member-order.js';
 
 let server, base, cookie;
 const uploadPermissions = [];
 const records = new Map();
+let savedMemberOrder = [];
 const store = {
-  async list() { return [...records.values()]; },
+  async list() { return applyMemberOrder([...records.values()], savedMemberOrder); },
+  async setMemberOrder(ids) { savedMemberOrder = [...ids]; },
   async put(pathname, bytes) {
     const item = record({ pathname, url: `https://example.public.blob.vercel-storage.com/${pathname}` });
     records.set(pathname, item); return item;
@@ -61,6 +64,7 @@ test('admin workflow and access protection', async () => {
   assert.equal((await request('/api/media', 'POST', { kind: 'videos' })).status, 401);
   assert.equal((await request('/api/media', 'DELETE', { id: 'anything' })).status, 401);
   assert.equal((await request('/api/media', 'POST', { kind: 'members', name: 'Anyone' })).status, 401);
+  assert.equal((await request('/api/media', 'PATCH', { kind: 'members', ids: [] })).status, 401);
   assert.equal((await request('/api/video-upload', 'POST', { title: 'Video', size: 100, contentType: 'video/mp4' })).status, 401);
   assert.equal((await request('/api/session', 'POST', { username: 'test-admin', password: 'wrong' })).status, 401);
   assert.equal((await request('/api/session', 'POST', { username: 'test-admin', password: 'test-password' }, { Origin: 'https://attacker.example' })).status, 403);
@@ -117,20 +121,36 @@ test('admin workflow and access protection', async () => {
   assert.equal(member.role, memberBody.role);
   assert.equal(member.note, memberBody.note);
   assert.match(member.url, /^https:\/\/example.public.blob.vercel-storage.com\/member-photos\/[a-f0-9-]+\.webp$/);
+  const second = (await (await request('/api/media', 'POST', { ...memberBody, name: 'Second member' })).json()).item;
+  const orderBody = { kind: 'members', ids: [second.id, member.id] };
+  assert.equal((await request('/api/media', 'PATCH', orderBody, { Origin: 'https://attacker.example' })).status, 403);
+  assert.equal((await request('/api/media', 'PATCH', { ...orderBody, ids: [member.id, member.id] })).status, 400);
+  assert.equal((await request('/api/media', 'PATCH', { ...orderBody, ids: [photoItem.id, member.id] })).status, 400);
+  assert.equal((await request('/api/media', 'PATCH', { ...orderBody, ids: [member.id] })).status, 409);
+  assert.equal((await request('/api/media', 'PATCH', orderBody)).status, 200);
+  assert.deepEqual((await (await request('/api/media')).json()).items.filter(item => item.kind === 'members').map(item => item.id), orderBody.ids);
   const publicResponse = await request('/api/media', 'GET', undefined, { Cookie: '' });
   const publicItems = (await publicResponse.json()).items;
-  assert.equal(publicItems.length, 4);
-  assert.deepEqual(publicItems.find(item => item.kind === 'members'), member);
+  assert.equal(publicItems.length, 5);
+  assert.deepEqual(publicItems.filter(item => item.kind === 'members'), [second, member]);
   assert.equal((await request('/api/media', 'DELETE', { id: 'security/login/example.json' })).status, 400);
   assert.equal((await request('/api/media', 'DELETE', { id: photoItem.id })).status, 200);
   assert.equal((await request('/api/media', 'DELETE', { id: videoItem.id })).status, 200);
   assert.equal((await request('/api/media', 'DELETE', { id: member.id })).status, 200);
+  assert.equal((await request('/api/media', 'DELETE', { id: second.id })).status, 200);
   assert.equal((await request('/api/media', 'DELETE', { id: clip.id })).status, 200);
   assert.equal((await (await request('/api/media')).json()).items.length, 0);
   const logout = await request('/api/session', 'DELETE');
   assert.match(logout.headers.get('set-cookie'), /Max-Age=0/);
   cookie = undefined;
   assert.equal((await request('/api/media', 'POST', { kind: 'videos' })).status, 401);
+});
+
+test('saved member order keeps new members and ignores removed members', () => {
+  const members = ['new', 'captain', 'dhaki'].map(id => ({ id, kind: 'members' }));
+  const photo = { id: 'photo', kind: 'photos' };
+  const result = applyMemberOrder([photo, ...members], ['captain', 'removed', 'dhaki']);
+  assert.deepEqual(result.map(item => item.id), ['photo', 'captain', 'dhaki', 'new']);
 });
 
 test('session rejects expired, forged, and malformed cookies', () => {
