@@ -1,11 +1,13 @@
 const $ = selector => document.querySelector(selector);
-let previewUrl;
+const previewUrls = new Map();
+let videoUploading = false;
+let clipPreviewUrl;
 function notice(message = '', type = '') { $('#notice').textContent = message; $('#notice').className = type; }
 function signedIn(value) {
   $('#login-panel').hidden = value;
   $('#studio').hidden = !value;
   $('#logout').hidden = !value;
-  if (!value) { $('#library').replaceChildren(); $('#login-form input').focus(); }
+  if (!value) { $('#library').replaceChildren(); $('#member-library').replaceChildren(); $('#login-form input').focus(); }
 }
 async function request(path, options = {}) {
   const response = await fetch(path, { credentials: 'same-origin', ...options, headers: { 'Content-Type': 'application/json', ...options.headers } });
@@ -23,19 +25,22 @@ async function busy(form, task, pending, success) {
   catch (error) { notice(error.message, 'error'); }
   finally { button.disabled = false; }
 }
-function clearPreview() {
-  if (previewUrl) URL.revokeObjectURL(previewUrl);
-  previewUrl = undefined; $('#photo-preview').hidden = true; $('#photo-preview').removeAttribute('src');
+function clearPreview(kind = 'photo') {
+  if (previewUrls.has(kind)) URL.revokeObjectURL(previewUrls.get(kind));
+  previewUrls.delete(kind); $(`#${kind}-preview`).hidden = true; $(`#${kind}-preview`).removeAttribute('src');
 }
-$('#photo-file').addEventListener('change', () => {
-  clearPreview();
-  const file = $('#photo-file').files[0];
-  if (!file) return;
-  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 20 * 1024 * 1024) {
-    $('#photo-file').value = ''; notice('Choose a JPEG, PNG, or WebP photo under 20 MB.', 'error'); return;
-  }
-  previewUrl = URL.createObjectURL(file); $('#photo-preview').src = previewUrl; $('#photo-preview').hidden = false; notice();
-});
+for (const kind of ['photo', 'member']) {
+  $(`#${kind}-file`).addEventListener('change', () => {
+    clearPreview(kind);
+    const file = $(`#${kind}-file`).files[0];
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 20 * 1024 * 1024) {
+      $(`#${kind}-file`).value = ''; notice('Choose a JPEG, PNG, or WebP photo under 20 MB.', 'error'); return;
+    }
+    const url = URL.createObjectURL(file); previewUrls.set(kind, url);
+    $(`#${kind}-preview`).src = url; $(`#${kind}-preview`).hidden = false; notice();
+  });
+}
 async function preparePhoto(file) {
   if (!file || file.size > 20 * 1024 * 1024 || !['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) throw new Error('Choose a JPEG, PNG, or WebP photo under 20 MB.');
   let bitmap;
@@ -54,13 +59,19 @@ async function preparePhoto(file) {
 }
 async function refresh() {
   const { items } = await request('/api/media');
-  $('#library').replaceChildren();
-  $('#item-count').textContent = `(${items.length})`; $('#empty').hidden = items.length > 0;
+  $('#library').replaceChildren(); $('#member-library').replaceChildren();
+  const members = items.filter(item => item.kind === 'members');
+  const mediaCount = items.length - members.length;
+  $('#item-count').textContent = `(${mediaCount})`; $('#empty').hidden = mediaCount > 0;
+  $('#member-count').textContent = `(${members.length})`; $('#members-empty').hidden = members.length > 0;
   for (const item of items) {
     const article = document.createElement('article'); article.className = 'media-card';
-    const img = document.createElement('img'); img.src = item.kind === 'photos' ? item.url : `https://i.ytimg.com/vi/${item.videoId}/hqdefault.jpg`; img.alt = item.title; img.loading = 'lazy';
+    const img = document.createElement(item.kind === 'clips' ? 'video' : 'img');
+    img.src = item.kind !== 'videos' ? item.url : `https://i.ytimg.com/vi/${item.videoId}/hqdefault.jpg`;
+    if (item.kind === 'clips') { img.controls = true; img.playsInline = true; img.preload = 'metadata'; img.setAttribute('aria-label', item.title); }
+    else { img.alt = item.title; img.loading = 'lazy'; }
     const content = document.createElement('div'); content.className = 'media-card-body';
-    const type = document.createElement('span'); type.className = 'media-type'; type.textContent = item.kind === 'photos' ? 'PHOTO' : 'YOUTUBE VIDEO';
+    const type = document.createElement('span'); type.className = 'media-type'; type.textContent = item.kind === 'members' ? item.role : item.kind === 'photos' ? 'PHOTO' : item.kind === 'clips' ? 'UPLOADED VIDEO' : 'YOUTUBE VIDEO';
     const heading = document.createElement('h3'); heading.textContent = item.title;
     const remove = document.createElement('button'); remove.className = 'quiet remove'; remove.textContent = 'Remove'; remove.setAttribute('aria-label', `Remove ${item.title}`);
     remove.addEventListener('click', async () => {
@@ -69,7 +80,9 @@ async function refresh() {
       try { await request('/api/media', { method: 'DELETE', body: JSON.stringify({ id: item.id }) }); await refresh(); notice('Removed from the website.', 'success'); }
       catch (error) { notice(error.message, 'error'); remove.disabled = false; }
     });
-    content.append(type, heading, remove); article.append(img, content); $('#library').append(article);
+    content.append(type, heading);
+    if (item.kind === 'members') { const note = document.createElement('p'); note.className = 'member-summary'; note.textContent = item.note; content.append(note); }
+    content.append(remove); article.append(img, content); $(item.kind === 'members' ? '#member-library' : '#library').append(article);
   }
 }
 $('#login-form').addEventListener('submit', event => {
@@ -95,8 +108,88 @@ $('#video-form').addEventListener('submit', event => {
     form.reset(); await refresh();
   }, 'Publishing your video…', 'Video published. It is now on the website.');
 });
+
+function clearVideoPreview() {
+  const preview = $('#clip-preview'); preview.pause(); preview.removeAttribute('src'); preview.load(); preview.hidden = true;
+  if (clipPreviewUrl) URL.revokeObjectURL(clipPreviewUrl);
+  clipPreviewUrl = undefined;
+}
+function checkVideoFile(file) {
+  if (!file || !/\.mp4$/i.test(file.name) || (file.type && file.type !== 'video/mp4')) throw new Error('Choose an MP4 video.');
+  if (!file.size || file.size > 100_000_000) throw new Error('Choose a video up to 100 MB.');
+}
+$('#clip-file').addEventListener('change', () => {
+  clearVideoPreview(); $('#clip-progress-wrap').hidden = true;
+  const file = $('#clip-file').files[0];
+  if (!file) return;
+  try {
+    checkVideoFile(file); clipPreviewUrl = URL.createObjectURL(file);
+    $('#clip-preview').src = clipPreviewUrl; $('#clip-preview').hidden = false; notice();
+  } catch (error) { $('#clip-file').value = ''; notice(error.message, 'error'); }
+});
+async function validateVideo(file) {
+  checkVideoFile(file);
+  const header = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+  if (String.fromCharCode(...header.slice(4, 8)) !== 'ftyp') throw new Error('This file is not a valid MP4 video.');
+  const preview = document.createElement('video');
+  const url = URL.createObjectURL(file);
+  try {
+    await new Promise((resolve, reject) => {
+      const finish = error => { clearTimeout(timer); preview.onloadeddata = null; preview.onerror = null; error ? reject(error) : resolve(); };
+      const timer = setTimeout(() => finish(new Error('Could not preview this video. Please export it as an H.264 MP4 and try again.')), 15000);
+      preview.onloadeddata = () => finish(preview.videoWidth && preview.videoHeight ? null : new Error('Choose an MP4 containing video.'));
+      preview.onerror = () => finish(new Error('This video cannot play in your browser. Please export it as an H.264 MP4.'));
+      preview.preload = 'auto'; preview.muted = true; preview.src = url;
+    });
+  } finally { preview.removeAttribute('src'); preview.load(); URL.revokeObjectURL(url); }
+}
+function uploadVideo(url, file) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', url); xhr.setRequestHeader('Content-Type', 'video/mp4'); xhr.timeout = 30 * 60 * 1000;
+    xhr.upload.onprogress = event => {
+      if (!event.lengthComputable) return;
+      const percent = Math.round(event.loaded / event.total * 100);
+      $('#clip-progress').value = percent; $('#clip-percent').textContent = percent === 100 ? 'Finishing…' : `${percent}%`;
+    };
+    xhr.onload = () => xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error('Video upload failed. Check the file is under 100 MB, then try again.'));
+    xhr.onerror = () => reject(new Error('The upload connection was interrupted. Your selected video is still here; please try again.'));
+    xhr.ontimeout = () => reject(new Error('The upload timed out. Please try again on a faster connection.'));
+    xhr.send(file);
+  });
+}
+window.addEventListener('beforeunload', event => { if (videoUploading) { event.preventDefault(); event.returnValue = ''; } });
+$('#clip-form').addEventListener('submit', event => {
+  event.preventDefault(); const form = event.currentTarget;
+  busy(form, async () => {
+    const file = form.elements.video.files[0]; const title = form.elements.title.value;
+    videoUploading = true; $('#logout').disabled = true;
+    for (const input of form.querySelectorAll('input')) input.disabled = true;
+    try {
+      await validateVideo(file);
+      const { uploadUrl } = await request('/api/video-upload', { method: 'POST', body: JSON.stringify({ title, size: file.size, contentType: 'video/mp4' }) });
+      $('#clip-progress').value = 0; $('#clip-percent').textContent = '0%'; $('#clip-progress-wrap').hidden = false;
+      notice('Uploading your video. Please keep this page open…');
+      await uploadVideo(uploadUrl, file);
+      form.reset(); clearVideoPreview(); $('#clip-percent').textContent = 'Published'; $('#clip-progress').value = 100;
+      await refresh();
+    } finally {
+      videoUploading = false; $('#logout').disabled = false;
+      for (const input of form.querySelectorAll('input')) input.disabled = false;
+    }
+  }, 'Checking your video…', 'Video published. Visitors can now play it on the website.');
+});
+$('#member-form').addEventListener('submit', event => {
+  event.preventDefault(); const form = event.currentTarget;
+  busy(form, async () => {
+    const profile = { name: form.elements.name.value, role: form.elements.role.value, note: form.elements.note.value };
+    const data = await preparePhoto(form.elements.photo.files[0]);
+    await request('/api/media', { method: 'POST', body: JSON.stringify({ kind: 'members', ...profile, data }) });
+    form.reset(); clearPreview('member'); await refresh();
+  }, 'Publishing your band member…', 'Band member published. They now appear in Meet the Band.');
+});
 $('#logout').addEventListener('click', async () => {
-  try { await request('/api/session', { method: 'DELETE' }); signedIn(false); $('#photo-form').reset(); $('#video-form').reset(); clearPreview(); notice('You have signed out.'); }
+  try { await request('/api/session', { method: 'DELETE' }); signedIn(false); $('#photo-form').reset(); $('#video-form').reset(); $('#member-form').reset(); $('#clip-form').reset(); clearVideoPreview(); clearPreview(); clearPreview('member'); notice('You have signed out.'); }
   catch (error) { notice(error.message, 'error'); }
 });
 $('#refresh').addEventListener('click', async () => { try { await refresh(); notice('Collection is up to date.', 'success'); } catch (error) { notice(error.message, 'error'); } });

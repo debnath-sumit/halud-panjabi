@@ -16,11 +16,37 @@
       <form id="login-form"><label>Username<input name="username" autocomplete="username" required maxlength="100" autofocus></label><label>Password<input name="password" type="password" autocomplete="current-password" required maxlength="256"></label><button type="submit" class="primary">Sign in <span>→</span></button></form>
     </section>
     <section id="studio" hidden>
-      <div class="studio-intro"><div><div class="eyebrow">OUR MOMENTS, SHARED</div><h1>A home for <em>our memories.</em></h1><p>Photos and videos you publish here appear on the website.</p></div><span class="studio-flower" aria-hidden="true">✺</span></div>
+      <div class="studio-intro"><div><div class="eyebrow">OUR MOMENTS, SHARED</div><h1>A home for <em>our memories.</em></h1><p>Introduce the band and share your photos and videos with the world.</p></div><span class="studio-flower" aria-hidden="true">✺</span></div>
       <div class="upload-grid">
         <form id="photo-form" class="panel"><div class="panel-heading"><span class="step">01</span><h2>Share a photo</h2></div><label>Photo title<input name="title" placeholder="A moment from Dashami" required maxlength="120"></label><label class="file-label">Choose a photo<input id="photo-file" name="photo" type="file" accept="image/jpeg,image/png,image/webp" required><span>JPEG, PNG or WebP · up to 20 MB</span></label><img id="photo-preview" class="photo-preview" alt="Selected photo preview" hidden><button type="submit" class="primary">Publish photo <span>↑</span></button><p class="hint">Photos are resized automatically for the website.</p></form>
-        <form id="video-form" class="panel"><div class="panel-heading"><span class="step">02</span><h2>Add a YouTube video</h2></div><label>Video title<input name="title" placeholder="The rhythm of Puja" required maxlength="120"></label><label>YouTube link<input name="url" type="url" placeholder="https://www.youtube.com/watch?v=…" required maxlength="2000"></label><p class="video-help">Share a performance, a rehearsal, or a favourite memory. Paste the video’s YouTube link here.</p><button type="submit" class="primary">Publish video <span>↑</span></button><p class="hint">Watch links, Shorts, and share links are supported.</p></form>
+        <form id="clip-form" class="panel">
+          <div class="panel-heading"><span class="step">02</span><h2>Upload a video</h2></div>
+          <label>Video title<input name="title" placeholder="Our latest performance" required maxlength="120"></label>
+          <label class="file-label">Choose a video<input id="clip-file" name="video" type="file" accept="video/mp4,.mp4" required><span>MP4 · up to 100 MB</span></label>
+          <video id="clip-preview" class="clip-preview" controls playsinline preload="metadata" aria-label="Selected video preview" hidden></video>
+          <div id="clip-progress-wrap" hidden><label for="clip-progress">Uploading video <span id="clip-percent">0%</span></label><progress id="clip-progress" value="0" max="100"></progress></div>
+          <button type="submit" class="primary">Upload and publish video <span>↑</span></button>
+          <p class="hint">Use an MP4 exported with H.264 video and AAC audio for broad playback support. Keep this page open while uploading.</p>
+        </form>
+        <details class="youtube-option"><summary>Have a YouTube link instead?</summary><form id="video-form" class="panel"><div class="panel-heading"><span class="step">03</span><h2>Add a YouTube video</h2></div><label>Video title<input name="title" placeholder="The rhythm of Puja" required maxlength="120"></label><label>YouTube link<input name="url" type="url" placeholder="https://www.youtube.com/watch?v=…" required maxlength="2000"></label><p class="video-help">Share a performance, a rehearsal, or a favourite memory. Paste the video’s YouTube link here.</p><button type="submit" class="primary">Publish video <span>↑</span></button><p class="hint">Watch links, Shorts, and share links are supported.</p></form></details>
       </div>
+      <form id="member-form" class="panel member-panel">
+        <div class="panel-heading"><span class="step">04</span><h2>Add a band member</h2></div>
+        <p>Introduce the people behind the rhythm. Their note appears when visitors hover over or tap their photo.</p>
+        <div class="member-form-grid"><div>
+          <label>Member name<input name="name" placeholder="Full name" required maxlength="100"></label>
+          <label>Role in the band<input name="role" list="band-roles" placeholder="e.g. Captain · Band Director" required maxlength="80"></label>
+          <datalist id="band-roles"><option value="Captain · Band Director"><option value="Dhaki · Dhak Player"><option value="Drummer"><option value="Percussionist"><option value="Vocalist"></datalist>
+          <label>A short note<textarea name="note" placeholder="A little about their music, personality, or place in the band…" rows="4" required maxlength="300"></textarea><span class="hint">Up to 300 characters. Shown over their photo.</span></label>
+        </div><div>
+          <label class="file-label">Member photo<input id="member-file" name="photo" type="file" accept="image/jpeg,image/png,image/webp" required><span>JPEG, PNG or WebP · up to 20 MB. A portrait works best.</span></label>
+          <img id="member-preview" class="photo-preview" alt="Selected member photo preview" hidden>
+        </div></div>
+        <button type="submit" class="primary">Publish band member <span>↑</span></button>
+      </form>
+      <div class="library-heading"><div><div class="eyebrow">THE PEOPLE BEHIND THE RHYTHM</div><h2>Band members <span id="member-count"></span></h2></div></div>
+      <p id="members-empty" class="empty" hidden>Add your first member above to introduce the band on the website.</p>
+      <div id="member-library" class="library"></div>
       <div class="library-heading"><div><div class="eyebrow">LIVE ON THE WEBSITE</div><h2>Your collection <span id="item-count"></span></h2></div><button id="refresh" class="quiet">Refresh ↻</button></div>
       <p id="empty" class="empty" hidden>Your collection starts here. Publish your first photo or video above.</p>
       <div id="library" class="library"></div>

@@ -12,7 +12,7 @@ Run `npm run check` for JavaScript syntax validation, `npm test` for API and aut
 
 Edit `index.html` for band copy, upcoming shows, and album content. Styling is in `style.css`, and menu and inquiry preview interactions are in `script.js`.
 
-The homepage uses the supplied image at `assets/dhak.png`. The media studio publishes photos and YouTube links into the public galleries. Empty galleries retain the designed placeholders. Photos are validated, resized, stripped of metadata, and stored as WebP. Each media item has its own immutable Blob pathname so simultaneous uploads do not overwrite each other. Administrators can remove items from the website. Google Fonts supplies Bengali and Latin typefaces, with system fallbacks when offline.
+The homepage uses the supplied image at `assets/dhak.png`. The media studio publishes photos and YouTube links into the public galleries, and member profiles into Meet the Band. Each member has a portrait, name, role (with suggestions or custom text), and a note of up to 300 characters. Notes appear on photo hover or activation with a tap, Enter, or Space; Escape closes them. Empty galleries retain the designed placeholders. Photos are validated, resized, stripped of metadata, and stored as WebP. Each media item has its own immutable Blob pathname so simultaneous uploads do not overwrite each other. Member profile JSON is stored alongside media, with portraits in `member-photos/`; removing a member deletes both. Administrators can remove items from the website. Google Fonts supplies Bengali and Latin typefaces, with system fallbacks when offline.
 
 Vercel runs `npm run build` and deploys `api/` as serverless functions. A connected public Vercel Blob store persists published media across deployments. The admin page is omitted from public navigation and marked `noindex`; all media changes require a server-verified session and a matching request origin.
 
@@ -25,5 +25,9 @@ Configure these server environment variables in Vercel (or an ignored `.env.loca
 - `APP_ORIGIN`: the canonical site origin, or `http://localhost:3000` locally.
 
 Credentials are never included in browser assets. Sessions expire after eight hours, and shared storage enforces eight sign-in attempts per IP per 15-minute window across function instances. Changing the password should also rotate the session secret. Preview deployments need their own environment configuration and matching origin for admin writes.
+
+Administrators can also upload MP4 videos up to 100 MB (100,000,000 bytes). The browser checks the file and previews playback, then requests a signed upload URL from `/api/video-upload`. Authentication and origin checks are required before issuance. Each URL permits only a new, server-generated video pathname, MP4 content, and the size limit, expires after 30 minutes, and disallows overwrites. Video bytes upload directly to Blob with progress feedback, avoiding the Vercel Function payload limit. Completed videos are listed from their immutable `media/clips/` paths, so no completion webhook or second publishing step is required. The public gallery uses native video controls without autoplay, and admins can remove uploads. YouTube links remain available as an alternative.
+
+Videos are served as uploaded; no transcoding is performed. Export MP4 with H.264 video and AAC audio for broad browser support. Uploads and playback count toward the connected store's usage allowances.
 
 The booking form still only previews an inquiry locally; it does not send or store submissions.

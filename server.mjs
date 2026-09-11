@@ -3,11 +3,13 @@ import { readFile } from 'node:fs/promises';
 if (process.loadEnvFile) { try { process.loadEnvFile('.env.local'); } catch (error) { if (error.code !== 'ENOENT') throw error; } }
 const { default: session } = await import('./api/session.js');
 const { default: media } = await import('./api/media.js');
+const { default: videoUpload } = await import('./api/video-upload.js');
 const files = { '/assets/dhak.png': ['assets/dhak.png', 'image/png'], '/assets/dhak.jpg': ['assets/dhak.jpg', 'image/jpeg'], '/': ['index.html', 'text/html'], '/index.html': ['index.html', 'text/html'], '/style.css': ['style.css', 'text/css'], '/script.js': ['script.js', 'text/javascript'] };
 const server = createServer(async (req, res) => {
   const pathname = new URL(req.url, 'http://localhost').pathname;
   if (pathname === '/api/session') return session(req, res);
   if (pathname === '/api/media') return media(req, res);
+  if (pathname === '/api/video-upload') return videoUpload(req, res);
   const adminFiles = { '/band-manager': ['admin.html', 'text/html'], '/admin.html': ['admin.html', 'text/html'], '/admin.css': ['admin.css', 'text/css'], '/admin.js': ['admin.js', 'text/javascript'] };
   const file = files[pathname] || adminFiles[pathname];
   if (!file) { res.writeHead(404); res.end('Not found'); return; }

@@ -1,15 +1,17 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { scryptSync, randomBytes } from 'node:crypto';
+import { scryptSync, randomBytes, randomUUID } from 'node:crypto';
 import sharp from 'sharp';
 import { createSessionHandler } from '../api/session.js';
 import { createMediaHandler } from '../api/media.js';
+import { createVideoUploadHandler, MAX_VIDEO_BYTES } from '../api/video-upload.js';
 import { authenticated, sessionCookie } from '../lib/auth.js';
-import { youtubeId, record } from '../lib/media.js';
+import { youtubeId, record, memberRecord } from '../lib/media.js';
 import { createLoginLimiter } from '../lib/storage.js';
 
 let server, base, cookie;
+const uploadPermissions = [];
 const records = new Map();
 const store = {
   async list() { return [...records.values()]; },
@@ -18,6 +20,12 @@ const store = {
     records.set(pathname, item); return item;
   },
   async delete(pathname) { records.delete(pathname); },
+  async putMember(profile) {
+    const id = randomUUID();
+    const pathname = `media/members/${Date.now()}-${id}.json`;
+    const item = memberRecord({ pathname, url: `https://example.public.blob.vercel-storage.com/${pathname}` }, { ...profile, imagePath: `member-photos/${id}.webp` });
+    records.set(pathname, item); return item;
+  },
 };
 before(async () => {
   process.env.ADMIN_USERNAME = 'test-admin';
@@ -25,7 +33,20 @@ before(async () => {
   process.env.ADMIN_SESSION_SECRET = randomBytes(32).toString('hex');
   const session = createSessionHandler(async () => {});
   const media = createMediaHandler(store);
-  server = createServer((req, res) => req.url === '/api/session' ? session(req, res) : media(req, res));
+  const videoUpload = createVideoUploadHandler({
+    async issueSignedToken(options) { uploadPermissions.push(options); return { scoped: options.pathname }; },
+    async presignUrl(token, options) {
+      assert.equal(token.scoped, options.pathname);
+      assert.equal(options.allowOverwrite, false);
+      assert.equal(options.addRandomSuffix, false);
+      assert.equal(options.operation, 'put');
+      assert.equal(options.access, 'public');
+      assert.equal(options.maximumSizeInBytes, MAX_VIDEO_BYTES);
+      assert.deepEqual(options.allowedContentTypes, ['video/mp4']);
+      return { presignedUrl: 'https://example.blob.vercel-storage.com/signed-upload' };
+    },
+  });
+  server = createServer((req, res) => req.url === '/api/session' ? session(req, res) : req.url === '/api/video-upload' ? videoUpload(req, res) : media(req, res));
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
   base = `http://127.0.0.1:${server.address().port}`;
   process.env.APP_ORIGIN = base;
@@ -39,6 +60,8 @@ test('admin workflow and access protection', async () => {
   assert.equal((await request('/api/session')).status, 200);
   assert.equal((await request('/api/media', 'POST', { kind: 'videos' })).status, 401);
   assert.equal((await request('/api/media', 'DELETE', { id: 'anything' })).status, 401);
+  assert.equal((await request('/api/media', 'POST', { kind: 'members', name: 'Anyone' })).status, 401);
+  assert.equal((await request('/api/video-upload', 'POST', { title: 'Video', size: 100, contentType: 'video/mp4' })).status, 401);
   assert.equal((await request('/api/session', 'POST', { username: 'test-admin', password: 'wrong' })).status, 401);
   assert.equal((await request('/api/session', 'POST', { username: 'test-admin', password: 'test-password' }, { Origin: 'https://attacker.example' })).status, 403);
   const login = await request('/api/session', 'POST', { username: 'test-admin', password: 'test-password' });
@@ -46,6 +69,27 @@ test('admin workflow and access protection', async () => {
   assert.match(login.headers.get('set-cookie'), /HttpOnly; SameSite=Strict/);
   cookie = login.headers.get('set-cookie').split(';')[0];
   assert.deepEqual(await (await request('/api/session')).json(), { authenticated: true });
+
+  const clipBody = { title: 'ঢাকের তালে', size: MAX_VIDEO_BYTES, contentType: 'video/mp4', pathname: 'security/overwrite.json' };
+  assert.equal((await request('/api/video-upload', 'GET')).status, 405);
+  assert.equal((await request('/api/video-upload', 'POST', clipBody, { Origin: 'https://attacker.example' })).status, 403);
+  for (const size of [0, -1, 1.5, MAX_VIDEO_BYTES + 1, '100']) assert.equal((await request('/api/video-upload', 'POST', { ...clipBody, size })).status, 400);
+  assert.equal((await request('/api/video-upload', 'POST', { ...clipBody, contentType: 'text/html' })).status, 400);
+  assert.equal((await request('/api/video-upload', 'POST', { ...clipBody, title: '' })).status, 400);
+  assert.equal(uploadPermissions.length, 0);
+  const uploadResponse = await request('/api/video-upload', 'POST', clipBody);
+  assert.equal(uploadResponse.status, 200);
+  assert.ok((await uploadResponse.json()).uploadUrl);
+  assert.equal(uploadPermissions.length, 1);
+  const permission = uploadPermissions[0];
+  assert.deepEqual(permission.operations, ['put']);
+  assert.deepEqual(permission.allowedContentTypes, ['video/mp4']);
+  assert.equal(permission.maximumSizeInBytes, 100_000_000);
+  assert.ok(permission.validUntil > Date.now() && permission.validUntil <= Date.now() + 30 * 60 * 1000);
+  assert.match(permission.pathname, /^media\/clips\/[0-9]{13}-[a-f0-9-]+~[A-Za-z0-9_-]+\.mp4$/);
+  const clip = await store.put(permission.pathname, Buffer.from('test video record'));
+  assert.equal(clip.kind, 'clips');
+  assert.equal(clip.title, clipBody.title);
 
   assert.equal((await request('/api/media', 'POST', { kind: 'videos', title: 'Unsafe', url: 'https://youtube.com.attacker.example/watch?v=dQw4w9WgXcQ' })).status, 400);
   assert.equal((await request('/api/media', 'POST', { kind: 'videos', title: 'A title', url: 'https://youtu.be/dQw4w9WgXcQ' }, { Origin: 'https://attacker.example' })).status, 403);
@@ -61,11 +105,27 @@ test('admin workflow and access protection', async () => {
   assert.equal(photo.status, 201);
   const { item: photoItem } = await photo.json();
   assert.match(photoItem.id, /\.webp$/);
+  const memberBody = { kind: 'members', name: 'সুমিত <script>', role: 'Captain · Band Director', note: 'Brings the band together.\nঢাকের তালে আমাদের গল্প।', data: image.toString('base64') };
+  assert.equal((await request('/api/media', 'POST', { ...memberBody, role: '' })).status, 400);
+  assert.equal((await request('/api/media', 'POST', { ...memberBody, note: 'x'.repeat(301) })).status, 400);
+  assert.equal((await request('/api/media', 'POST', { ...memberBody, data: invalid })).status, 400);
+  assert.equal((await request('/api/media', 'POST', memberBody, { Origin: 'https://attacker.example' })).status, 403);
+  const memberResponse = await request('/api/media', 'POST', memberBody);
+  assert.equal(memberResponse.status, 201);
+  const { item: member } = await memberResponse.json();
+  assert.equal(member.name, memberBody.name);
+  assert.equal(member.role, memberBody.role);
+  assert.equal(member.note, memberBody.note);
+  assert.match(member.url, /^https:\/\/example.public.blob.vercel-storage.com\/member-photos\/[a-f0-9-]+\.webp$/);
   const publicResponse = await request('/api/media', 'GET', undefined, { Cookie: '' });
-  assert.equal((await publicResponse.json()).items.length, 2);
+  const publicItems = (await publicResponse.json()).items;
+  assert.equal(publicItems.length, 4);
+  assert.deepEqual(publicItems.find(item => item.kind === 'members'), member);
   assert.equal((await request('/api/media', 'DELETE', { id: 'security/login/example.json' })).status, 400);
   assert.equal((await request('/api/media', 'DELETE', { id: photoItem.id })).status, 200);
   assert.equal((await request('/api/media', 'DELETE', { id: videoItem.id })).status, 200);
+  assert.equal((await request('/api/media', 'DELETE', { id: member.id })).status, 200);
+  assert.equal((await request('/api/media', 'DELETE', { id: clip.id })).status, 200);
   assert.equal((await (await request('/api/media')).json()).items.length, 0);
   const logout = await request('/api/session', 'DELETE');
   assert.match(logout.headers.get('set-cookie'), /Max-Age=0/);

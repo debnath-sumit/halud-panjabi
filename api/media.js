@@ -1,6 +1,6 @@
 import { requireAdmin } from '../lib/auth.js';
 import { HttpError, json, readJson, sameOrigin, handleError } from '../lib/http.js';
-import { title, youtubeId, photoBytes, mediaPath, record } from '../lib/media.js';
+import { title, youtubeId, photoBytes, mediaPath, record, memberProfile, isMemberPath } from '../lib/media.js';
 import { storage } from '../lib/storage.js';
 
 export function createMediaHandler(store = storage) {
@@ -12,9 +12,14 @@ export function createMediaHandler(store = storage) {
       sameOrigin(req);
       const body = await readJson(req, req.method === 'POST' ? 4_100_000 : 8192);
       if (req.method === 'DELETE') {
-        if (typeof body.id !== 'string' || !record({ pathname: body.id })) throw new HttpError(400, 'Invalid media item.');
+        if (typeof body.id !== 'string' || (!record({ pathname: body.id }) && !isMemberPath(body.id))) throw new HttpError(400, 'Invalid media item.');
         await store.delete(body.id);
         return json(res, 200, { deleted: true });
+      }
+      if (body.kind === 'members') {
+        const profile = memberProfile(body);
+        const bytes = await photoBytes(body.data);
+        return json(res, 201, { item: await store.putMember(profile, bytes) });
       }
       const label = title(body.title);
       let item;
