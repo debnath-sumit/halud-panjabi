@@ -98,12 +98,12 @@ async function loadMedia() {
     const videoGrid = document.querySelector('.video-grid');
     const photoMore = document.querySelector('#photos-load-more');
     const videoMore = document.querySelector('#videos-load-more');
-    const pageSize = 24;
+    const photoPageSize = 9; const videoPageSize = 6;
     let photoCount = 0; let videoCount = 0;
     if (photos.length) albums.replaceChildren();
     if (videos.length) videoGrid.replaceChildren();
     const renderPhotos = () => {
-      photos.slice(photoCount, photoCount + pageSize).forEach((item, index) => {
+      photos.slice(photoCount, photoCount + photoPageSize).forEach((item, index) => {
       const article = document.createElement('article'); article.className = 'album';
       const link = document.createElement('button'); link.type = 'button'; link.className = 'published-photo'; link.setAttribute('aria-label', `View ${item.title} full size`); link.setAttribute('aria-haspopup', 'dialog');
       const itemIndex = photoCount + index;
@@ -112,13 +112,13 @@ async function loadMedia() {
       const heading = document.createElement('h3'); heading.textContent = item.title;
       link.append(img); article.append(link, heading); albums.append(article);
       });
-      photoCount += Math.min(pageSize, photos.length - photoCount);
+      photoCount += Math.min(photoPageSize, photos.length - photoCount);
       photoMore.hidden = photoCount >= photos.length;
     };
     photoMore.addEventListener('click', renderPhotos);
     renderPhotos();
     const renderVideos = () => {
-    videos.slice(videoCount, videoCount + pageSize).forEach(item => {
+    videos.slice(videoCount, videoCount + videoPageSize).forEach(item => {
       const article = document.createElement('article'); article.className = 'video-card';
       if (item.kind === 'clips') {
         const video = document.createElement('video'); video.src = item.url; video.controls = true; video.playsInline = true; video.preload = 'none'; video.setAttribute('aria-label', item.title);
@@ -133,7 +133,7 @@ async function loadMedia() {
       const fallback = document.createElement('a'); fallback.className = 'text-link'; fallback.href = `https://www.youtube.com/watch?v=${item.videoId}`; fallback.target = '_blank'; fallback.rel = 'noopener'; fallback.textContent = 'Watch on YouTube ↗';
       article.append(iframe, heading, fallback); videoGrid.append(article);
       });
-      videoCount += Math.min(pageSize, videos.length - videoCount);
+      videoCount += Math.min(videoPageSize, videos.length - videoCount);
       videoMore.hidden = videoCount >= videos.length;
     };
     videoMore.addEventListener('click', renderVideos);
