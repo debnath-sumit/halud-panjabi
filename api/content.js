@@ -31,7 +31,14 @@ export function createContentHandler(store = storage) {
       }
       if (body.kind === 'media-edit') {
         if (typeof body.id !== 'string' || typeof body.title !== 'string' || !body.title.trim()) throw new HttpError(400, 'Add a title.');
-        content.overrides[body.id] = { ...(content.overrides[body.id] || {}), title: title(body.title) };
+        const existing = (await store.list()).find(item => item.id === body.id);
+        if (!existing || !['photos', 'clips', 'videos'].includes(existing.kind)) throw new HttpError(404, 'Media item not found.');
+        const edit = { ...(content.overrides[body.id] || {}), title: title(body.title) };
+        if (body.imageData) {
+          if (existing.kind !== 'photos') throw new HttpError(400, 'Only photo images can be replaced here.');
+          edit.url = (await store.putAsset(mediaPath('photo-edits', edit.title), await photoBytes(body.imageData), 'image/webp')).url;
+        }
+        content.overrides[body.id] = edit;
         await store.saveContent(content); return json(res, 200, { saved: true });
       }
       if (body.kind === 'member-edit') {
