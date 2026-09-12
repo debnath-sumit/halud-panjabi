@@ -83,20 +83,32 @@ async function loadMedia() {
     });
     const albums = document.querySelector('.album-grid');
     const videoGrid = document.querySelector('.video-grid');
+    const photoMore = document.querySelector('#photos-load-more');
+    const videoMore = document.querySelector('#videos-load-more');
+    const pageSize = 24;
+    let photoCount = 0; let videoCount = 0;
     if (photos.length) albums.replaceChildren();
     if (videos.length) videoGrid.replaceChildren();
-    photos.forEach((item, index) => {
+    const renderPhotos = () => {
+      photos.slice(photoCount, photoCount + pageSize).forEach((item, index) => {
       const article = document.createElement('article'); article.className = 'album';
       const link = document.createElement('button'); link.type = 'button'; link.className = 'published-photo'; link.setAttribute('aria-label', `View ${item.title} full size`); link.setAttribute('aria-haspopup', 'dialog');
-      link.addEventListener('click', () => openLightbox(photos, index, link));
+      const itemIndex = photoCount + index;
+      link.addEventListener('click', () => openLightbox(photos, itemIndex, link));
       const img = document.createElement('img'); img.src = item.url; img.alt = item.title; img.loading = 'lazy';
       const heading = document.createElement('h3'); heading.textContent = item.title;
       link.append(img); article.append(link, heading); albums.append(article);
-    });
-    videos.forEach(item => {
+      });
+      photoCount += Math.min(pageSize, photos.length - photoCount);
+      photoMore.hidden = photoCount >= photos.length;
+    };
+    photoMore.addEventListener('click', renderPhotos);
+    renderPhotos();
+    const renderVideos = () => {
+    videos.slice(videoCount, videoCount + pageSize).forEach(item => {
       const article = document.createElement('article'); article.className = 'video-card';
       if (item.kind === 'clips') {
-        const video = document.createElement('video'); video.src = item.url; video.controls = true; video.playsInline = true; video.preload = 'metadata'; video.setAttribute('aria-label', item.title);
+        const video = document.createElement('video'); video.src = item.url; video.controls = true; video.playsInline = true; video.preload = 'none'; video.setAttribute('aria-label', item.title);
         const message = document.createElement('p'); message.className = 'video-playback-error'; message.hidden = true; message.textContent = 'This video cannot play in this browser. Try opening it below.';
         video.addEventListener('error', () => { message.hidden = false; });
         const heading = document.createElement('h3'); heading.textContent = item.title;
@@ -107,7 +119,12 @@ async function loadMedia() {
       const heading = document.createElement('h3'); heading.textContent = item.title;
       const fallback = document.createElement('a'); fallback.className = 'text-link'; fallback.href = `https://www.youtube.com/watch?v=${item.videoId}`; fallback.target = '_blank'; fallback.rel = 'noopener'; fallback.textContent = 'Watch on YouTube ↗';
       article.append(iframe, heading, fallback); videoGrid.append(article);
-    });
+      });
+      videoCount += Math.min(pageSize, videos.length - videoCount);
+      videoMore.hidden = videoCount >= videos.length;
+    };
+    videoMore.addEventListener('click', renderVideos);
+    renderVideos();
   } catch { /* Keep the existing gallery placeholders when storage is unavailable. */ }
 }
 loadMedia();
