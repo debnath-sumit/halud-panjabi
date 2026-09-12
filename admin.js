@@ -18,6 +18,29 @@ async function request(path, options = {}) {
   }
   return body;
 }
+async function contentRequest(options = {}) { return request('/api/content', options); }
+async function encodeFile(file) { return file ? preparePhoto(file) : ''; }
+let contentState = { intro: {}, shows: [], overrides: {} };
+async function loadContentAdmin() {
+  contentState = await contentRequest();
+  const intro = contentState.intro || {};
+  for (const field of ['bengaliTitle', 'englishTitle', 'description']) if (intro[field]) $('#intro-form').elements[field].value = intro[field];
+  renderShows();
+}
+function renderShows() {
+  const shows = contentState.shows || []; $('#show-library').replaceChildren(); $('#show-count').textContent = `(${shows.length})`; $('#shows-empty').hidden = shows.length > 0;
+  shows.forEach(show => {
+    const card = document.createElement('article'); card.className = 'show-admin-card';
+    if (show.image) { const image = document.createElement('img'); image.src = show.image; image.alt = `${show.name} flyer`; card.append(image); }
+    const body = document.createElement('div'); const heading = document.createElement('h3'); heading.textContent = show.name; const details = document.createElement('p'); details.textContent = `${show.date} · ${show.location}\nOrganised by ${show.organisedBy}`; const actions = document.createElement('div'); actions.className = 'show-actions';
+    const edit = document.createElement('button'); edit.className = 'quiet'; edit.textContent = 'Edit'; edit.addEventListener('click', () => fillShow(show));
+    const remove = document.createElement('button'); remove.className = 'quiet remove'; remove.textContent = 'Delete'; remove.addEventListener('click', async () => { if (!confirm(`Delete “${show.name}”?`)) return; await saveContent({ method: 'POST', body: JSON.stringify({ kind: 'shows', id: show.id }) }); await loadContentAdmin(); notice('Show deleted.', 'success'); });
+    actions.append(edit, remove); body.append(heading, details, actions); card.append(body); $('#show-library').append(card);
+  });
+}
+function fillShow(show) { const form = $('#show-form'); form.elements.id.value = show.id; for (const field of ['name','date','location','organisedBy']) form.elements[field].value = show[field]; $('#show-form-title').textContent = 'Edit upcoming show'; $('#show-cancel').hidden = false; form.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+function resetShow() { const form = $('#show-form'); form.reset(); form.elements.id.value = ''; $('#show-form-title').textContent = 'Add an upcoming show'; $('#show-cancel').hidden = true; }
+async function saveContent(options) { return contentRequest(options); }
 async function busy(form, task, pending, success) {
   const button = form.querySelector('button[type="submit"]');
   button.disabled = true; notice(pending);
@@ -103,9 +126,13 @@ async function refresh() {
       }
       content.append(order);
     }
+    if (item.kind !== 'clips') { const edit = document.createElement('button'); edit.className = 'quiet'; edit.textContent = 'Edit'; edit.addEventListener('click', async () => { if (item.kind === 'members') { const form = $('#member-form'); form.elements.id.value = item.id; form.elements.name.value = item.name; form.elements.role.value = item.role; form.elements.note.value = item.note; form.elements.photo.required = false; $('#member-form-title').textContent = 'Edit band member'; form.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; } const next = prompt('Title', item.title); if (next === null || !next.trim()) return; try { await saveContent({ method: 'PATCH', body: JSON.stringify({ kind: 'media-edit', id: item.id, title: next }) }); await refresh(); notice('Changes saved.', 'success'); } catch (error) { notice(error.message, 'error'); } }); content.append(edit); }
     content.append(remove); article.append(img, content); $(item.kind === 'members' ? '#member-library' : '#library').append(article);
   }
 }
+$('#intro-form').addEventListener('submit', event => { event.preventDefault(); const form = event.currentTarget; busy(form, async () => { const image = await encodeFile(form.elements.image.files[0]); await saveContent({ method: 'PATCH', body: JSON.stringify({ kind: 'intro', bengaliTitle: form.elements.bengaliTitle.value, englishTitle: form.elements.englishTitle.value, description: form.elements.description.value, imageData: image }) }); await loadContentAdmin(); }, 'Saving homepage introduction…', 'Homepage introduction saved.'); });
+$('#show-form').addEventListener('submit', event => { event.preventDefault(); const form = event.currentTarget; busy(form, async () => { const imageData = await encodeFile(form.elements.image.files[0]); const body = { kind: 'shows', id: form.elements.id.value, name: form.elements.name.value, date: form.elements.date.value, location: form.elements.location.value, organisedBy: form.elements.organisedBy.value, imageData }; await saveContent({ method: form.elements.id.value ? 'PATCH' : 'POST', body: JSON.stringify(body) }); resetShow(); await loadContentAdmin(); }, 'Saving show…', 'Upcoming show saved.'); });
+$('#show-cancel').addEventListener('click', resetShow);
 $('#login-form').addEventListener('submit', event => {
   event.preventDefault(); const form = event.currentTarget;
   busy(form, async () => {
@@ -204,10 +231,13 @@ $('#member-form').addEventListener('submit', event => {
   event.preventDefault(); const form = event.currentTarget;
   busy(form, async () => {
     const profile = { name: form.elements.name.value, role: form.elements.role.value, note: form.elements.note.value };
-    const data = await preparePhoto(form.elements.photo.files[0]);
-    await request('/api/media', { method: 'POST', body: JSON.stringify({ kind: 'members', ...profile, data }) });
-    form.reset(); clearPreview('member'); await refresh();
-  }, 'Publishing your band member…', 'Band member published. They now appear in Meet the Band.');
+    const file = form.elements.photo.files[0];
+    const data = file ? await preparePhoto(file) : '';
+    const body = { kind: form.elements.id.value ? 'member-edit' : 'members', ...profile, data };
+    if (form.elements.id.value) { body.id = form.elements.id.value; await saveContent({ method: 'PATCH', body: JSON.stringify({ ...body, imageData: data }) }); }
+    else await request('/api/media', { method: 'POST', body: JSON.stringify({ ...body, data }) });
+    form.reset(); form.elements.photo.required = true; form.elements.id.value = ''; $('#member-form-title').textContent = 'Add a band member'; clearPreview('member'); await refresh();
+  }, 'Saving band member…', 'Band member saved.');
 });
 $('#logout').addEventListener('click', async () => {
   try { await request('/api/session', { method: 'DELETE' }); signedIn(false); $('#photo-form').reset(); $('#video-form').reset(); $('#member-form').reset(); $('#clip-form').reset(); clearVideoPreview(); clearPreview(); clearPreview('member'); notice('You have signed out.'); }
@@ -215,6 +245,6 @@ $('#logout').addEventListener('click', async () => {
 });
 $('#refresh').addEventListener('click', async () => { try { await refresh(); notice('Collection is up to date.', 'success'); } catch (error) { notice(error.message, 'error'); } });
 (async () => {
-  try { const session = await request('/api/session'); signedIn(session.authenticated); if (session.authenticated) await refresh(); notice(); }
+  try { const session = await request('/api/session'); signedIn(session.authenticated); if (session.authenticated) { await refresh(); await loadContentAdmin(); } notice(); }
   catch (error) { signedIn(false); notice(error.message, 'error'); }
 })();

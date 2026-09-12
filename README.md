@@ -1,4 +1,4 @@
-# Halud Panjabi
+# Holud Panjabi
 
 A responsive Bengali musical band website with a protected media studio, built with HTML, CSS, JavaScript, and Vercel Functions. Requires Node.js 22.12 or newer.
 
@@ -12,7 +12,7 @@ Run `npm run check` for JavaScript syntax validation, `npm test` for API and aut
 
 Edit `index.html` for band copy, upcoming shows, and album content. Styling is in `style.css`, and menu and inquiry preview interactions are in `script.js`.
 
-The homepage uses the supplied image at `assets/dhak.png`. The media studio publishes photos and YouTube links into the public galleries, and member profiles into Meet the Band. Each member has a portrait, name, role (with suggestions or custom text), and a note of up to 300 characters. Notes appear on photo hover. Clicking or tapping a member portrait opens a lightbox with their name, role, and note. Gallery photos also open in the same in-page viewer, with previous/next controls, arrow-key navigation, Escape/backdrop dismissal, and focus restoration. Empty galleries retain the designed placeholders. Photos are validated, resized, stripped of metadata, and stored as WebP. Each media item has its own immutable Blob pathname so simultaneous uploads do not overwrite each other. Member profile JSON is stored alongside media, with portraits in `member-photos/`; removing a member deletes both. Administrators can remove items from the website. Google Fonts supplies Bengali and Latin typefaces, with system fallbacks when offline.
+The homepage uses the supplied image at `assets/dhak.png`. The protected studio can update the homepage Bengali headline, English headline, introduction, and hero image; manage upcoming shows with name, date, location, organiser, and flyer; publish, edit, and remove member profiles; and publish, edit, and remove photos and videos. Each member has a portrait, name, role (with suggestions or custom text), and a note of up to 300 characters. Notes appear on photo hover. Clicking or tapping a member portrait opens a lightbox with their name, role, and note. Gallery photos also open in the same in-page viewer, with previous/next controls, arrow-key navigation, Escape/backdrop dismissal, and focus restoration. Empty galleries retain the designed placeholders. Photos are validated, resized, stripped of metadata, and stored as WebP. Each media item has its own immutable Blob pathname so simultaneous uploads do not overwrite each other. Member profile JSON is stored alongside media, with portraits in `member-photos/`; removing a member deletes both. Google Fonts supplies Bengali and Latin typefaces, with system fallbacks when offline.
 
 Vercel runs `npm run build` and deploys `api/` as serverless functions. A connected public Vercel Blob store persists published media across deployments. The admin page is omitted from public navigation and marked `noindex`; all media changes require a server-verified session and a matching request origin.
 

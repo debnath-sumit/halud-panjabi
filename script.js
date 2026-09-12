@@ -111,3 +111,33 @@ async function loadMedia() {
   } catch { /* Keep the existing gallery placeholders when storage is unavailable. */ }
 }
 loadMedia();
+
+async function loadContent() {
+  try {
+    const response = await fetch('/api/content'); if (!response.ok) return;
+    const content = await response.json(); const intro = content.intro || {};
+    if (intro.bengaliTitle) document.querySelector('#intro-bengali').textContent = intro.bengaliTitle;
+    if (intro.englishTitle) document.querySelector('#intro-english').textContent = intro.englishTitle;
+    if (intro.description) document.querySelector('#intro-description').textContent = intro.description;
+    if (intro.image) document.querySelector('#intro-image').src = intro.image;
+    const list = document.querySelector('#show-list');
+    if (!content.shows?.length) return;
+    list.replaceChildren();
+    content.shows.forEach(show => {
+      const card = document.createElement('article'); card.className = 'show-card';
+      const date = document.createElement('div'); date.className = 'show-date';
+      const dateLabel = document.createElement('span'); dateLabel.textContent = new Date(`${show.date}T12:00:00`).toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+      const day = document.createElement('strong'); day.textContent = new Date(`${show.date}T12:00:00`).getDate();
+      const year = document.createElement('small'); year.textContent = new Date(`${show.date}T12:00:00`).getFullYear(); date.append(dateLabel, day, year);
+      const info = document.createElement('div'); info.className = 'show-info';
+      const pill = document.createElement('span'); pill.className = 'pill'; pill.textContent = show.organisedBy;
+      const heading = document.createElement('h3'); heading.textContent = show.name;
+      const location = document.createElement('p'); location.textContent = show.location;
+      const meta = document.createElement('div'); meta.className = 'show-meta'; const dateText = document.createElement('span'); dateText.textContent = `◷ ${show.date}`; const placeText = document.createElement('span'); placeText.textContent = `⌖ ${show.location}`; meta.append(dateText, placeText); info.append(pill, heading, location, meta);
+      const link = document.createElement('a'); link.href = '#contact'; link.className = 'circle-link'; link.textContent = '↗'; link.setAttribute('aria-label', `Ask about ${show.name}`); card.append(date, info, link);
+      if (show.image) { const flyer = document.createElement('img'); flyer.src = show.image; flyer.alt = `${show.name} flyer`; flyer.className = 'show-flyer'; card.append(flyer); }
+      list.append(card);
+    });
+  } catch { /* Keep the designed defaults when content storage is unavailable. */ }
+}
+loadContent();
