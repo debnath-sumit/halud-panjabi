@@ -4,6 +4,8 @@
 .hero-art{aspect-ratio:auto;padding:18px 20px 65px 30px}.dhak-photo{display:block;width:100%;height:auto;border-radius:8px;box-shadow:0 16px 35px #75421820}.hero-art .anniversary{right:-8px;top:-12px}.hero-art .art-caption{bottom:0}@media(max-width:720px){.hero-art{padding:15px 12px 60px;max-width:420px}.hero-art .anniversary{right:0;top:0}}
 
 /* Blend the supplied image’s white background into the yellow hero. */
+.intro{font-size:17px;line-height:1.8}
+@media(max-width:720px){.intro{font-size:16px;line-height:1.75}}
 .dhak-photo{mix-blend-mode:multiply;border-radius:0;box-shadow:none}
 
 .dhak-photo{max-height:510px;object-fit:contain}@media(max-width:720px){.dhak-photo{max-height:420px}}
