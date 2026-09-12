@@ -58,6 +58,7 @@ A whole lot of celebration.</textarea></label><label>Introduction note<textarea 
       <div id="library" class="library"></div>
     </section>
   </main>
+  <dialog id="photo-edit-dialog" class="photo-edit-dialog"><form id="photo-edit-form" class="panel"><div class="panel-heading"><span class="step">✎</span><h2>Edit photo</h2></div><input type="hidden" name="id"><label>Photo title<input name="title" required maxlength="120"></label><label class="file-label">Replace photo<input id="photo-edit-file" name="photo" type="file" accept="image/jpeg,image/png,image/webp" required><span>JPEG, PNG or WebP · up to 20 MB</span></label><img id="photo-edit-preview" class="photo-preview" alt="Replacement photo preview" hidden><div class="edit-dialog-actions"><button type="submit" class="primary">Save photo <span>↑</span></button><button id="photo-edit-cancel" type="button" class="quiet">Cancel</button></div></form></dialog>
   <script src="/admin.js" defer></script>
 </body>
 </html>

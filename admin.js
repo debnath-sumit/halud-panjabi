@@ -2,6 +2,7 @@ const $ = selector => document.querySelector(selector);
 const previewUrls = new Map();
 let videoUploading = false;
 let clipPreviewUrl;
+let photoEditPreviewUrl;
 function notice(message = '', type = '') { $('#notice').textContent = message; $('#notice').className = type; }
 function signedIn(value) {
   $('#login-panel').hidden = value;
@@ -52,6 +53,7 @@ function clearPreview(kind = 'photo') {
   if (previewUrls.has(kind)) URL.revokeObjectURL(previewUrls.get(kind));
   previewUrls.delete(kind); $(`#${kind}-preview`).hidden = true; $(`#${kind}-preview`).removeAttribute('src');
 }
+function clearPhotoEditPreview() { if (photoEditPreviewUrl) URL.revokeObjectURL(photoEditPreviewUrl); photoEditPreviewUrl = undefined; $('#photo-edit-preview').hidden = true; $('#photo-edit-preview').removeAttribute('src'); }
 for (const kind of ['photo', 'member']) {
   $(`#${kind}-file`).addEventListener('change', () => {
     clearPreview(kind);
@@ -129,9 +131,7 @@ async function refresh() {
     if (item.kind !== 'clips') { const edit = document.createElement('button'); edit.className = 'quiet'; edit.textContent = 'Edit'; edit.addEventListener('click', async () => {
       if (item.kind === 'members') { const form = $('#member-form'); form.elements.id.value = item.id; form.elements.name.value = item.name; form.elements.role.value = item.role; form.elements.note.value = item.note; form.elements.photo.required = false; $('#member-form-title').textContent = 'Edit band member'; form.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
       if (item.kind === 'photos') {
-        const picker = document.createElement('input'); picker.type = 'file'; picker.accept = 'image/jpeg,image/png,image/webp';
-        picker.addEventListener('change', async () => { const file = picker.files[0]; if (!file) return; try { notice('Uploading the replacement photo…'); const imageData = await preparePhoto(file); await saveContent({ method: 'PATCH', body: JSON.stringify({ kind: 'media-edit', id: item.id, title: item.title, imageData }) }); await refresh(); notice('Photo updated.', 'success'); } catch (error) { notice(error.message, 'error'); } });
-        picker.click(); return;
+        const form = $('#photo-edit-form'); form.elements.id.value = item.id; form.elements.title.value = item.title; form.elements.photo.value = ''; clearPhotoEditPreview(); $('#photo-edit-dialog').showModal(); form.elements.photo.focus(); return;
       }
       const next = prompt('Title', item.title); if (next === null || !next.trim()) return;
       try { await saveContent({ method: 'PATCH', body: JSON.stringify({ kind: 'media-edit', id: item.id, title: next }) }); await refresh(); notice('Title updated.', 'success'); } catch (error) { notice(error.message, 'error'); }
@@ -248,6 +248,9 @@ $('#member-form').addEventListener('submit', event => {
     form.reset(); form.elements.photo.required = true; form.elements.id.value = ''; $('#member-form-title').textContent = 'Add a band member'; clearPreview('member'); await refresh();
   }, 'Saving band member…', 'Band member saved.');
 });
+$('#photo-edit-file').addEventListener('change', () => { clearPhotoEditPreview(); const file = $('#photo-edit-file').files[0]; if (!file) return; if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 20 * 1024 * 1024) { $('#photo-edit-file').value = ''; notice('Choose a JPEG, PNG, or WebP photo under 20 MB.', 'error'); return; } photoEditPreviewUrl = URL.createObjectURL(file); $('#photo-edit-preview').src = photoEditPreviewUrl; $('#photo-edit-preview').hidden = false; });
+$('#photo-edit-cancel').addEventListener('click', () => { clearPhotoEditPreview(); $('#photo-edit-dialog').close(); });
+$('#photo-edit-form').addEventListener('submit', event => { event.preventDefault(); const form = event.currentTarget; busy(form, async () => { const imageData = await preparePhoto(form.elements.photo.files[0]); await saveContent({ method: 'PATCH', body: JSON.stringify({ kind: 'media-edit', id: form.elements.id.value, title: form.elements.title.value, imageData }) }); clearPhotoEditPreview(); $('#photo-edit-dialog').close(); await refresh(); notice('Photo updated.', 'success'); }, 'Uploading the replacement photo…', 'Photo updated.'); });
 $('#logout').addEventListener('click', async () => {
   try { await request('/api/session', { method: 'DELETE' }); signedIn(false); $('#photo-form').reset(); $('#video-form').reset(); $('#member-form').reset(); $('#clip-form').reset(); clearVideoPreview(); clearPreview(); clearPreview('member'); notice('You have signed out.'); }
   catch (error) { notice(error.message, 'error'); }
