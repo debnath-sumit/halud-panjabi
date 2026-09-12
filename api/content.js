@@ -20,7 +20,9 @@ export function createContentHandler(store = storage) {
       const body = await readJson(req, 4_100_000);
       if (body.kind === 'intro') {
         const intro = {};
-        for (const field of ['bengaliTitle', 'englishTitle', 'description']) { if (typeof body[field] !== 'string' || [...body[field].trim()].length > 500) throw new HttpError(400, 'Introduction text is too long.'); intro[field] = body[field].trim(); }
+        for (const field of ['bengaliTitle', 'englishTitle']) { if (typeof body[field] !== 'string' || [...body[field].trim()].length > 500) throw new HttpError(400, 'Introduction headline is too long.'); intro[field] = body[field].trim(); }
+        if (typeof body.description !== 'string' || [...body.description.trim()].length > 5000) throw new HttpError(400, 'Introduction note is too long.');
+        intro.description = body.description.trim();
         if (body.imageData) { intro.image = (await store.putAsset(mediaPath('intro', 'homepage'), await photoBytes(body.imageData), 'image/webp')).url; }
         content.intro = { ...content.intro, ...intro }; await store.saveContent(content); return json(res, 200, { intro: content.intro });
       }

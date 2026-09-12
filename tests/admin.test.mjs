@@ -111,7 +111,7 @@ test('admin workflow and access protection', async () => {
   assert.match(photoItem.id, /\.webp$/);
   const memberBody = { kind: 'members', name: 'সুমিত <script>', role: 'Captain · Band Director', note: 'Brings the band together.\nঢাকের তালে আমাদের গল্প।', data: image.toString('base64') };
   assert.equal((await request('/api/media', 'POST', { ...memberBody, role: '' })).status, 400);
-  assert.equal((await request('/api/media', 'POST', { ...memberBody, note: 'x'.repeat(301) })).status, 400);
+  assert.equal((await request('/api/media', 'POST', { ...memberBody, note: 'x'.repeat(501) })).status, 400);
   assert.equal((await request('/api/media', 'POST', { ...memberBody, data: invalid })).status, 400);
   assert.equal((await request('/api/media', 'POST', memberBody, { Origin: 'https://attacker.example' })).status, 403);
   const memberResponse = await request('/api/media', 'POST', memberBody);
