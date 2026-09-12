@@ -8,11 +8,13 @@ const links = [...navigation.querySelectorAll('a')];
 const observer = new IntersectionObserver(entries => { entries.forEach(entry => { if (entry.isIntersecting) { links.forEach(link => { const active = link.hash === '#' + entry.target.id; link.classList.toggle('active', active); if (active) link.setAttribute('aria-current', 'location'); else link.removeAttribute('aria-current'); }); } }); }, { rootMargin: '-15% 0px -60% 0px' });
 document.querySelectorAll('main section[id]').forEach(section => observer.observe(section));
 document.querySelector('#year').textContent = new Date().getFullYear();
-const dhakAudio = document.querySelector('#dhak-audio'); const dhakPlay = document.querySelector('#dhak-play');
-dhakPlay.addEventListener('click', async () => {
+const dhakAudio = document.querySelector('#dhak-audio'); const dhakPlay = document.querySelector('#dhak-play'); let dhakStarted = false;
+async function playDhak() {
+  if (dhakStarted) return; dhakStarted = true;
   dhakAudio.pause(); dhakAudio.currentTime = 0; dhakAudio.volume = 0;
-  try { await dhakAudio.play(); dhakPlay.textContent = 'Playing dhak ♪'; const started = performance.now(); const timer = setInterval(() => { const elapsed = (performance.now() - started) / 1000; if (elapsed >= 10) { clearInterval(timer); dhakAudio.pause(); dhakAudio.currentTime = 0; dhakAudio.volume = 0; dhakPlay.textContent = 'Play dhak ♪'; return; } dhakAudio.volume = Math.min(1, elapsed / 3, (10 - elapsed) / 3); }, 50); } catch { dhakPlay.textContent = 'Tap to play dhak ♪'; }
-});
+  try { await dhakAudio.play(); dhakPlay.textContent = 'Playing dhak ♪'; const started = performance.now(); const timer = setInterval(() => { const elapsed = (performance.now() - started) / 1000; if (elapsed >= 10) { clearInterval(timer); dhakAudio.pause(); dhakAudio.currentTime = 0; dhakAudio.volume = 0; dhakPlay.textContent = 'Play dhak ♪'; return; } dhakAudio.volume = Math.min(1, elapsed / 3, (10 - elapsed) / 3); }, 50); } catch { dhakStarted = false; dhakPlay.textContent = 'Tap to play dhak ♪'; }
+}
+dhakPlay.addEventListener('click', playDhak); document.addEventListener('pointerdown', playDhak, { once: true });
 document.querySelector('#booking-form').addEventListener('submit', async event => {
   event.preventDefault();
   const data = new FormData(event.target);
