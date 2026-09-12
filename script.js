@@ -8,11 +8,17 @@ const links = [...navigation.querySelectorAll('a')];
 const observer = new IntersectionObserver(entries => { entries.forEach(entry => { if (entry.isIntersecting) { links.forEach(link => { const active = link.hash === '#' + entry.target.id; link.classList.toggle('active', active); if (active) link.setAttribute('aria-current', 'location'); else link.removeAttribute('aria-current'); }); } }); }, { rootMargin: '-15% 0px -60% 0px' });
 document.querySelectorAll('main section[id]').forEach(section => observer.observe(section));
 document.querySelector('#year').textContent = new Date().getFullYear();
-document.querySelector('#booking-form').addEventListener('submit', event => {
+document.querySelector('#booking-form').addEventListener('submit', async event => {
   event.preventDefault();
   const data = new FormData(event.target);
   const result = document.querySelector('#form-result');
-  result.textContent = `Inquiry preview — nothing has been sent.\n\nName: ${data.get('name')}\nEmail: ${data.get('email')}\nEvent date: ${data.get('date')}\nLocation: ${data.get('location')}\n\n${data.get('message')}\n\nLive booking will be available once the band’s contact service is connected.`;
+  const button = event.target.querySelector('button[type="submit"]'); button.disabled = true; result.textContent = 'Sending your inquiry…';
+  try {
+    const response = await fetch('/api/contact', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.fromEntries(data)) });
+    const payload = await response.json(); if (!response.ok) throw new Error(payload.error || 'Your inquiry could not be sent.');
+    result.textContent = 'Your inquiry has been sent. We’ll be in touch soon.'; event.target.reset();
+  } catch (error) { result.textContent = error.message; }
+  button.disabled = false;
   result.hidden = false;
 });
 
