@@ -157,6 +157,10 @@ async function loadContent() {
     if (intro.description) document.querySelector('#intro-description').textContent = intro.description;
     if (intro.image) document.querySelector('#intro-image').src = intro.image;
     const list = document.querySelector('#show-list');
+    const announcement = document.querySelector('#event-announcement'); const announcementText = document.querySelector('#announcement-text');
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const upcoming = content.shows.filter(show => { const date = new Date(`${show.date}T00:00:00`); const days = Math.round((date - today) / 86400000); return days >= 0 && days <= 7; }).sort((a, b) => a.date.localeCompare(b.date))[0];
+    if (upcoming) { const eventDate = new Date(`${upcoming.date}T12:00:00`); announcementText.textContent = ` ${upcoming.name} · ${eventDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · ${upcoming.location}`; announcement.hidden = false; }
     if (!content.shows?.length) return;
     list.replaceChildren();
     content.shows.forEach(show => {
@@ -177,3 +181,4 @@ async function loadContent() {
   } catch { /* Keep the designed defaults when content storage is unavailable. */ }
 }
 loadContent();
+document.querySelector('#announcement-close').addEventListener('click', () => { document.querySelector('#event-announcement').hidden = true; });
