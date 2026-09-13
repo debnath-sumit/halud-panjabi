@@ -79,25 +79,27 @@ async function loadMedia() {
       document.querySelector('#band').classList.add('has-members');
       memberGrid.replaceChildren();
     }
-    members.forEach((item, index) => {
+    const memberMore = document.querySelector('#members-load-more');
+    let memberCount = 0;
+    const renderMembers = () => {
+      members.slice(memberCount, memberCount + 9).forEach((item, index) => {
+      const itemIndex = memberCount + index;
       const article = document.createElement('article'); article.className = 'member-card';
       const portrait = document.createElement('button'); portrait.type = 'button'; portrait.className = 'member-portrait';
-      const noteId = `member-note-${index}`;
-      portrait.setAttribute('aria-expanded', 'false'); portrait.setAttribute('aria-controls', noteId); portrait.setAttribute('aria-label', `About ${item.name}`);
-      portrait.setAttribute('aria-haspopup', 'dialog');
+      const noteId = `member-note-${itemIndex}`;
+      portrait.setAttribute('aria-expanded', 'false'); portrait.setAttribute('aria-controls', noteId); portrait.setAttribute('aria-label', `About ${item.name}`); portrait.setAttribute('aria-haspopup', 'dialog');
       const img = document.createElement('img'); img.src = item.url; img.alt = item.name; img.loading = 'lazy';
       const overlay = document.createElement('span'); overlay.className = 'member-note'; overlay.id = noteId; overlay.textContent = item.note; overlay.hidden = true;
       const hint = document.createElement('span'); hint.className = 'member-hint'; hint.textContent = 'View portrait ↗';
-      const reveal = open => { overlay.hidden = !open; portrait.setAttribute('aria-expanded', String(open)); portrait.classList.toggle('revealed', open); hint.textContent = 'View portrait ↗'; };
-      portrait.addEventListener('pointerenter', event => { if (event.pointerType === 'mouse') reveal(true); });
-      portrait.addEventListener('pointerleave', event => { if (event.pointerType === 'mouse') reveal(false); });
-      portrait.addEventListener('click', () => openLightbox(members, index, portrait));
-      portrait.addEventListener('keydown', event => { if (event.key === 'Escape') { reveal(false); event.stopPropagation(); } });
-      portrait.addEventListener('blur', () => reveal(false));
-      const name = document.createElement('h3'); name.textContent = item.name;
-      const role = document.createElement('p'); role.className = 'member-role'; role.textContent = item.role;
+      const reveal = open => { overlay.hidden = !open; portrait.setAttribute('aria-expanded', String(open)); portrait.classList.toggle('revealed', open); };
+      portrait.addEventListener('pointerenter', event => { if (event.pointerType === 'mouse') reveal(true); }); portrait.addEventListener('pointerleave', event => { if (event.pointerType === 'mouse') reveal(false); });
+      portrait.addEventListener('click', () => openLightbox(members, itemIndex, portrait)); portrait.addEventListener('keydown', event => { if (event.key === 'Escape') { reveal(false); event.stopPropagation(); } }); portrait.addEventListener('blur', () => reveal(false));
+      const name = document.createElement('h3'); name.textContent = item.name; const role = document.createElement('p'); role.className = 'member-role'; role.textContent = item.role;
       portrait.append(img, overlay, hint); article.append(portrait, name, role); memberGrid.append(article);
-    });
+      });
+      memberCount += Math.min(9, members.length - memberCount); memberMore.hidden = memberCount >= members.length;
+    };
+    memberMore.addEventListener('click', renderMembers); renderMembers();
     const albums = document.querySelector('.album-grid');
     const videoGrid = document.querySelector('.video-grid');
     const photoMore = document.querySelector('#photos-load-more');
