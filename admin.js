@@ -160,7 +160,7 @@ $('#login-form').addEventListener('submit', event => {
   event.preventDefault(); const form = event.currentTarget;
   busy(form, async () => {
     await request('/api/session', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(form))) });
-    form.reset(); signedIn(true); await refresh();
+    form.reset(); signedIn(true); await Promise.all([loadContentAdmin(), refresh()]);
   }, 'Signing in…', 'Welcome back. Your studio is ready.');
 });
 $('#photo-form').addEventListener('submit', event => {
@@ -271,6 +271,6 @@ $('#logout').addEventListener('click', async () => {
 });
 $('#refresh').addEventListener('click', async () => { try { await refresh(); notice('Collection is up to date.', 'success'); } catch (error) { notice(error.message, 'error'); } });
 (async () => {
-  try { const session = await request('/api/session'); signedIn(session.authenticated); if (session.authenticated) { await refresh(); await loadContentAdmin(); } notice(); }
+  try { const session = await request('/api/session'); signedIn(session.authenticated); if (session.authenticated) { await Promise.all([loadContentAdmin(), refresh()]); } notice(); }
   catch (error) { signedIn(false); notice(error.message, 'error'); }
 })();
