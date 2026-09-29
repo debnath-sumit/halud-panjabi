@@ -141,7 +141,7 @@ async function refresh() {
       }
       content.append(order);
     }
-    if (item.kind !== 'clips') { const edit = document.createElement('button'); edit.className = 'quiet'; edit.type = 'button'; edit.textContent = 'Edit event'; edit.setAttribute('aria-label', `Edit ${show.name}`); edit.addEventListener('click', async () => {
+    if (item.kind !== 'clips') { const edit = document.createElement('button'); edit.className = 'quiet'; edit.type = 'button'; edit.textContent = 'Edit'; edit.addEventListener('click', async () => {
       if (item.kind === 'members') { const form = $('#member-form'); form.elements.id.value = item.id; form.elements.name.value = item.name; form.elements.role.value = item.role; form.elements.note.value = item.note; form.elements.photo.required = false; $('#member-form-title').textContent = 'Edit band member'; form.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
       if (item.kind === 'photos') {
         const form = $('#photo-edit-form'); form.elements.id.value = item.id; form.elements.title.value = item.title; form.elements.photo.value = ''; clearPhotoEditPreview(); $('#photo-edit-dialog').showModal(); form.elements.photo.focus(); return;
