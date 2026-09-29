@@ -5,7 +5,7 @@ const { default: session } = await import('./api/session.js');
 const { default: media } = await import('./api/media.js');
 const { default: videoUpload } = await import('./api/video-upload.js');
 const { default: content } = await import('./api/content.js');
-const files = { '/assets/dhak.png': ['assets/dhak.png', 'image/png'], '/assets/dhak.jpg': ['assets/dhak.jpg', 'image/jpeg'], '/': ['index.html', 'text/html'], '/index.html': ['index.html', 'text/html'], '/style.css': ['style.css', 'text/css'], '/script.js': ['script.js', 'text/javascript'] };
+const files = { '/events.js': ['events.js', 'text/javascript'], '/events-data.js': ['events-data.js', 'text/javascript'], '/events.css': ['events.css', 'text/css'], '/assets/dhak.png': ['assets/dhak.png', 'image/png'], '/assets/dhak.jpg': ['assets/dhak.jpg', 'image/jpeg'], '/': ['index.html', 'text/html'], '/index.html': ['index.html', 'text/html'], '/style.css': ['style.css', 'text/css'], '/script.js': ['script.js', 'text/javascript'] };
 const server = createServer(async (req, res) => {
   const pathname = new URL(req.url, 'http://localhost').pathname;
   if (pathname === '/api/session') return session(req, res);

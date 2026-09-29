@@ -4,11 +4,24 @@ import { title, photoBytes, mediaPath, memberProfile } from '../lib/media.js';
 import { storage } from '../lib/storage.js';
 import { randomUUID } from 'node:crypto';
 
-const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+import { validDate, safeWebUrl } from '../events-data.js';
 function showInput(body) {
-  for (const field of ['name', 'date', 'location', 'organisedBy']) if (typeof body[field] !== 'string' || !body[field].trim() || body[field].length > 180) throw new HttpError(400, `Add a valid show ${field}.`);
-  if (!datePattern.test(body.date)) throw new HttpError(400, 'Use a valid show date.');
-  return { name: body.name.trim(), date: body.date, location: body.location.trim(), organisedBy: body.organisedBy.trim(), image: body.image || '' };
+  const result = {};
+  for (const field of ['name', 'date', 'location', 'organisedBy']) {
+    if (typeof body[field] !== 'string' || !body[field].trim() || body[field].length > 180) throw new HttpError(400, `Add a valid show ${field}.`);
+    result[field] = body[field].trim();
+  }
+  if (!validDate(result.date)) throw new HttpError(400, 'Use a valid event date.');
+  for (const [field, limit] of Object.entries({ endDate: 10, time: 5, venue: 180, address: 500, description: 3000, performance: 1500, website: 1000, timeZone: 100 })) {
+    if (body[field] === undefined) continue;
+    if (typeof body[field] !== 'string' || body[field].length > limit) throw new HttpError(400, `Add a valid event ${field}.`);
+    result[field] = body[field].trim();
+  }
+  if (result.endDate && (!validDate(result.endDate) || result.endDate < result.date)) throw new HttpError(400, 'End date must be on or after the start date.');
+  if (result.time && !/^([01]\d|2[0-3]):[0-5]\d$/.test(result.time)) throw new HttpError(400, 'Use a valid performance time.');
+  if (result.website && !safeWebUrl(result.website)) throw new HttpError(400, 'Use an http or https event website URL.');
+  if (result.timeZone) { try { new Intl.DateTimeFormat('en-US', { timeZone: result.timeZone }); } catch { throw new HttpError(400, 'Use a valid venue timezone, such as America/Los_Angeles.'); } }
+  return result;
 }
 export function createContentHandler(store = storage) {
   return async function handler(req, res) {
@@ -26,9 +39,17 @@ export function createContentHandler(store = storage) {
         if (body.imageData) { intro.image = (await store.putAsset(mediaPath('intro', 'homepage'), await photoBytes(body.imageData), 'image/webp')).url; }
         content.intro = { ...content.intro, ...intro }; await store.saveContent(content); return json(res, 200, { intro: content.intro });
       }
+      if (body.kind === 'audio-settings') {
+        const playSeconds = Number(body.playSeconds);
+        const fadeSeconds = Number(body.fadeSeconds);
+        if (!Number.isInteger(playSeconds) || playSeconds < 0 || playSeconds > 1800) throw new HttpError(400, 'Choose a whole-number sound duration from 0 to 1,800 seconds.');
+        if (!Number.isInteger(fadeSeconds) || fadeSeconds < 0 || fadeSeconds > 1800) throw new HttpError(400, 'Choose a whole-number fade duration from 0 to 1,800 seconds.');
+        content.audio = { playSeconds, fadeSeconds };
+        await store.saveContent(content); return json(res, 200, { audio: content.audio });
+      }
       if (body.kind === 'shows') {
-        if (req.method === 'POST') { const show = showInput(body); if (body.imageData) show.image = (await store.putAsset(mediaPath('shows', show.name), await photoBytes(body.imageData), 'image/webp')).url; show.id = randomUUID(); content.shows.push(show); }
-        else { const index = content.shows.findIndex(show => show.id === body.id); if (index < 0) throw new HttpError(404, 'Show not found.'); if (req.method === 'DELETE') content.shows.splice(index, 1); else { const show = showInput(body); if (body.imageData) show.image = (await store.putAsset(mediaPath('shows', show.name), await photoBytes(body.imageData), 'image/webp')).url; show.id = body.id; content.shows[index] = show; } }
+        if (req.method === 'POST') { const show = { image: '', ...showInput(body) }; if (body.imageData) show.image = (await store.putAsset(mediaPath('shows', show.name), await photoBytes(body.imageData), 'image/webp')).url; show.id = randomUUID(); content.shows.push(show); }
+        else { const index = content.shows.findIndex(show => show.id === body.id); if (index < 0) throw new HttpError(404, 'Show not found.'); if (req.method === 'DELETE') content.shows.splice(index, 1); else { const show = { ...content.shows[index], ...showInput(body) }; if (show.endDate && show.endDate < show.date) throw new HttpError(400, 'End date must be on or after the start date.'); if (body.imageData) show.image = (await store.putAsset(mediaPath('shows', show.name), await photoBytes(body.imageData), 'image/webp')).url; show.id = body.id; content.shows[index] = show; } }
         await store.saveContent(content); return json(res, 200, { shows: content.shows });
       }
       if (body.kind === 'media-edit') {

@@ -26,6 +26,9 @@ async function loadContentAdmin() {
   contentState = await contentRequest();
   const intro = contentState.intro || {};
   for (const field of ['bengaliTitle', 'englishTitle', 'description']) if (intro[field]) $('#intro-form').elements[field].value = intro[field];
+  const audio = contentState.audio || { playSeconds: 15, fadeSeconds: 0 };
+  $('#audio-form').elements.playSeconds.value = audio.playSeconds ?? 15;
+  $('#audio-form').elements.fadeSeconds.value = audio.fadeSeconds ?? 0;
   renderShows();
 }
 function renderShows() {
@@ -34,13 +37,23 @@ function renderShows() {
     const card = document.createElement('article'); card.className = 'show-admin-card';
     if (show.image) { const image = document.createElement('img'); image.src = show.image; image.alt = `${show.name} flyer`; card.append(image); }
     const body = document.createElement('div'); const heading = document.createElement('h3'); heading.textContent = show.name; const details = document.createElement('p'); details.textContent = `${show.date} · ${show.location}\nOrganised by ${show.organisedBy}`; const actions = document.createElement('div'); actions.className = 'show-actions';
-    const edit = document.createElement('button'); edit.className = 'quiet'; edit.textContent = 'Edit'; edit.addEventListener('click', () => fillShow(show));
-    const remove = document.createElement('button'); remove.className = 'quiet remove'; remove.textContent = 'Delete'; remove.addEventListener('click', async () => { if (!confirm(`Delete “${show.name}”?`)) return; await saveContent({ method: 'POST', body: JSON.stringify({ kind: 'shows', id: show.id }) }); await loadContentAdmin(); notice('Show deleted.', 'success'); });
+    const edit = document.createElement('button'); edit.className = 'quiet'; edit.type = 'button'; edit.textContent = 'Edit event'; edit.setAttribute('aria-label', `Edit ${show.name}`); edit.addEventListener('click', () => fillShow(show));
+    const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'quiet remove'; remove.textContent = 'Delete event'; remove.setAttribute('aria-label', `Delete ${show.name}`);
+    remove.addEventListener('click', async () => {
+      if (!confirm(`Delete “${show.name}”? This will remove the event from the website.`)) return;
+      remove.disabled = true; edit.disabled = true; notice('Deleting event…');
+      try {
+        const result = await saveContent({ method: 'DELETE', body: JSON.stringify({ kind: 'shows', id: show.id }) });
+        if ($('#show-form').elements.id.value === show.id) resetShow();
+        contentState.shows = result.shows; renderShows(); notice('Event deleted.', 'success');
+      } catch (error) { notice(error.message, 'error'); }
+      finally { remove.disabled = false; edit.disabled = false; }
+    });
     actions.append(edit, remove); body.append(heading, details, actions); card.append(body); $('#show-library').append(card);
   });
 }
-function fillShow(show) { const form = $('#show-form'); form.elements.id.value = show.id; for (const field of ['name','date','location','organisedBy']) form.elements[field].value = show[field]; $('#show-form-title').textContent = 'Edit upcoming show'; $('#show-cancel').hidden = false; form.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
-function resetShow() { const form = $('#show-form'); form.reset(); form.elements.id.value = ''; $('#show-form-title').textContent = 'Add an upcoming show'; $('#show-cancel').hidden = true; }
+function fillShow(show) { const form = $('#show-form'); form.reset(); form.elements.id.value = show.id; for (const field of ['name','date','location','organisedBy','endDate','time','venue','address','timeZone','performance','description','website']) form.elements[field].value = show[field] || ''; $('#show-form-title').textContent = 'Edit event'; form.querySelector('button[type="submit"]').textContent = 'Save changes'; $('#show-cancel').hidden = false; form.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+function resetShow() { const form = $('#show-form'); form.reset(); form.elements.id.value = ''; $('#show-form-title').textContent = 'Add an event'; form.querySelector('button[type="submit"]').textContent = 'Save event'; $('#show-cancel').hidden = true; }
 async function saveContent(options) { return contentRequest(options); }
 async function busy(form, task, pending, success) {
   const button = form.querySelector('button[type="submit"]');
@@ -128,7 +141,7 @@ async function refresh() {
       }
       content.append(order);
     }
-    if (item.kind !== 'clips') { const edit = document.createElement('button'); edit.className = 'quiet'; edit.textContent = 'Edit'; edit.addEventListener('click', async () => {
+    if (item.kind !== 'clips') { const edit = document.createElement('button'); edit.className = 'quiet'; edit.type = 'button'; edit.textContent = 'Edit event'; edit.setAttribute('aria-label', `Edit ${show.name}`); edit.addEventListener('click', async () => {
       if (item.kind === 'members') { const form = $('#member-form'); form.elements.id.value = item.id; form.elements.name.value = item.name; form.elements.role.value = item.role; form.elements.note.value = item.note; form.elements.photo.required = false; $('#member-form-title').textContent = 'Edit band member'; form.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
       if (item.kind === 'photos') {
         const form = $('#photo-edit-form'); form.elements.id.value = item.id; form.elements.title.value = item.title; form.elements.photo.value = ''; clearPhotoEditPreview(); $('#photo-edit-dialog').showModal(); form.elements.photo.focus(); return;
@@ -140,7 +153,8 @@ async function refresh() {
   }
 }
 $('#intro-form').addEventListener('submit', event => { event.preventDefault(); const form = event.currentTarget; busy(form, async () => { const image = await encodeFile(form.elements.image.files[0]); await saveContent({ method: 'PATCH', body: JSON.stringify({ kind: 'intro', bengaliTitle: form.elements.bengaliTitle.value, englishTitle: form.elements.englishTitle.value, description: form.elements.description.value, imageData: image }) }); await loadContentAdmin(); }, 'Saving homepage introduction…', 'Homepage introduction saved.'); });
-$('#show-form').addEventListener('submit', event => { event.preventDefault(); const form = event.currentTarget; busy(form, async () => { const imageData = await encodeFile(form.elements.image.files[0]); const body = { kind: 'shows', id: form.elements.id.value, name: form.elements.name.value, date: form.elements.date.value, location: form.elements.location.value, organisedBy: form.elements.organisedBy.value, imageData }; await saveContent({ method: form.elements.id.value ? 'PATCH' : 'POST', body: JSON.stringify(body) }); resetShow(); await loadContentAdmin(); }, 'Saving show…', 'Upcoming show saved.'); });
+$('#audio-form').addEventListener('submit', event => { event.preventDefault(); const form = event.currentTarget; busy(form, async () => { await saveContent({ method: 'PATCH', body: JSON.stringify({ kind: 'audio-settings', playSeconds: Number(form.elements.playSeconds.value), fadeSeconds: Number(form.elements.fadeSeconds.value) }) }); await loadContentAdmin(); }, 'Saving sound timing…', 'Dhak sound timing saved.'); });
+$('#show-form').addEventListener('submit', event => { event.preventDefault(); const form = event.currentTarget; busy(form, async () => { const imageData = await encodeFile(form.elements.image.files[0]); const body = { kind: 'shows', id: form.elements.id.value, name: form.elements.name.value, date: form.elements.date.value, location: form.elements.location.value, organisedBy: form.elements.organisedBy.value, ...Object.fromEntries(['endDate','time','venue','address','timeZone','performance','description','website'].map(field => [field, form.elements[field].value])), imageData }; await saveContent({ method: form.elements.id.value ? 'PATCH' : 'POST', body: JSON.stringify(body) }); resetShow(); await loadContentAdmin(); }, 'Saving event…', 'Event saved.'); });
 $('#show-cancel').addEventListener('click', resetShow);
 $('#login-form').addEventListener('submit', event => {
   event.preventDefault(); const form = event.currentTarget;

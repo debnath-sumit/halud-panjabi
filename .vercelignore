@@ -2,3 +2,6 @@ README.md
 server.mjs
 tests/
 test-results/
+
+# Local source videos are uploaded through the content manager.
+/*.mp4

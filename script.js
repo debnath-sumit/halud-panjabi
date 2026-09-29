@@ -12,13 +12,35 @@ const chatToggle = document.querySelector('#chat-toggle'); const chatPanel = doc
 function setChat(open) { chatPanel.hidden = !open; chatToggle.setAttribute('aria-expanded', String(open)); if (open) chatPanel.querySelector('input').focus(); }
 chatToggle.addEventListener('click', () => setChat(chatPanel.hidden)); chatClose.addEventListener('click', () => setChat(false));
 document.querySelector('#chat-form').addEventListener('submit', async event => { event.preventDefault(); const form = event.target; const input = form.elements.message; const question = input.value.trim(); if (!question) return; const bubble = document.createElement('p'); bubble.className = 'chat-bubble visitor'; bubble.textContent = question; chatMessages.append(bubble); input.value = ''; input.disabled = true; const reply = document.createElement('p'); reply.className = 'chat-bubble assistant'; reply.textContent = 'Thinking…'; chatMessages.append(reply); chatMessages.scrollTop = chatMessages.scrollHeight; try { const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: question }) }); const payload = await response.json(); if (!response.ok) throw new Error(payload.error || 'The assistant is unavailable.'); reply.textContent = payload.answer; } catch (error) { reply.textContent = error.message; } input.disabled = false; input.focus(); chatMessages.scrollTop = chatMessages.scrollHeight; });
-const dhakAudio = document.querySelector('#dhak-audio'); let dhakStarted = false;
-async function playDhak() {
+const dhakAudio = document.querySelector('#dhak-audio'); let dhakStarted = false; let dhakSettings = null; let dhakGestureArmed = false;
+const DHAK_DEFAULTS = { playSeconds: 15, fadeSeconds: 0 };
+function armDhakGesture() {
+  if (dhakGestureArmed || dhakStarted) return;
+  dhakGestureArmed = true;
+  const start = () => { dhakGestureArmed = false; playDhak(dhakSettings || DHAK_DEFAULTS); };
+  for (const type of ['pointerdown', 'touchstart', 'keydown']) document.addEventListener(type, start, { once: true, passive: true });
+}
+async function playDhak(settings = DHAK_DEFAULTS) {
   if (dhakStarted) return; dhakStarted = true;
   dhakAudio.pause(); dhakAudio.currentTime = 0; dhakAudio.volume = 0;
-  try { await dhakAudio.play(); const started = performance.now(); const timer = setInterval(() => { const elapsed = (performance.now() - started) / 1000; if (elapsed >= 10) { clearInterval(timer); dhakAudio.pause(); dhakAudio.currentTime = 0; dhakAudio.volume = 0; return; } dhakAudio.volume = Math.min(1, elapsed / 3, (10 - elapsed) / 3); }, 50); } catch { dhakStarted = false; }
+  const playSeconds = Number.isInteger(Number(settings.playSeconds)) ? Math.max(0, Math.min(1800, Number(settings.playSeconds))) : DHAK_DEFAULTS.playSeconds;
+  const fadeSeconds = Number.isInteger(Number(settings.fadeSeconds)) ? Math.max(0, Math.min(1800, Number(settings.fadeSeconds))) : DHAK_DEFAULTS.fadeSeconds;
+  try {
+    await dhakAudio.play();
+    const started = performance.now();
+    const timer = setInterval(() => {
+      const elapsed = (performance.now() - started) / 1000;
+      if (elapsed >= playSeconds + fadeSeconds) {
+        clearInterval(timer); dhakAudio.pause(); dhakAudio.currentTime = 0; dhakAudio.volume = 0; return;
+      }
+      dhakAudio.volume = elapsed < playSeconds || fadeSeconds === 0 ? 1 : Math.max(0, 1 - ((elapsed - playSeconds) / fadeSeconds));
+    }, 100);
+  } catch { dhakStarted = false; armDhakGesture(); }
 }
-dhakAudio.volume = 0; playDhak();
+dhakAudio.volume = 0;
+fetch('/api/content').then(response => response.ok ? response.json() : Promise.reject(new Error('content unavailable')))
+  .then(content => { dhakSettings = { ...DHAK_DEFAULTS, ...(content.audio || {}) }; return playDhak(dhakSettings); })
+  .catch(() => playDhak(DHAK_DEFAULTS));
 document.querySelector('#booking-form').addEventListener('submit', async event => {
   event.preventDefault();
   const data = new FormData(event.target);
@@ -39,7 +61,8 @@ function renderLightbox() {
   const item = lightboxItems[lightboxIndex];
   const image = document.querySelector('#lightbox-image');
   document.querySelector('#lightbox-error').hidden = true;
-  image.alt = item.name || item.title; image.src = item.url;
+  image.alt = item.name || item.title; image.hidden = !item.url;
+  if (item.url) image.src = item.url; else image.removeAttribute('src');
   document.querySelector('#lightbox-title').textContent = item.name || item.title;
   for (const field of ['role', 'note']) {
     const element = document.querySelector(`#lightbox-${field}`); element.textContent = item[field] || ''; element.hidden = !item[field];
@@ -156,29 +179,7 @@ async function loadContent() {
     if (intro.englishTitle) document.querySelector('#intro-english').textContent = intro.englishTitle;
     if (intro.description) document.querySelector('#intro-description').textContent = intro.description;
     if (intro.image) document.querySelector('#intro-image').src = intro.image;
-    const list = document.querySelector('#show-list');
-    const announcement = document.querySelector('#event-announcement'); const announcementText = document.querySelector('#announcement-text');
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const upcoming = content.shows.filter(show => { const date = new Date(`${show.date}T00:00:00`); const days = Math.round((date - today) / 86400000); return days >= 0 && days <= 7; }).sort((a, b) => a.date.localeCompare(b.date))[0];
-    if (upcoming) { const eventDate = new Date(`${upcoming.date}T12:00:00`); announcementText.textContent = ` ${upcoming.name} · ${eventDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · ${upcoming.location}`; announcement.hidden = false; }
-    if (!content.shows?.length) return;
-    list.replaceChildren();
-    content.shows.forEach(show => {
-      const card = document.createElement('article'); card.className = 'show-card';
-      const date = document.createElement('div'); date.className = 'show-date';
-      const dateLabel = document.createElement('span'); dateLabel.textContent = new Date(`${show.date}T12:00:00`).toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
-      const day = document.createElement('strong'); day.textContent = new Date(`${show.date}T12:00:00`).getDate();
-      const year = document.createElement('small'); year.textContent = new Date(`${show.date}T12:00:00`).getFullYear(); date.append(dateLabel, day, year);
-      const info = document.createElement('div'); info.className = 'show-info';
-      const pill = document.createElement('span'); pill.className = 'pill'; pill.textContent = show.organisedBy;
-      const heading = document.createElement('h3'); heading.textContent = show.name;
-      const location = document.createElement('p'); location.textContent = show.location;
-      const meta = document.createElement('div'); meta.className = 'show-meta'; const dateText = document.createElement('span'); dateText.textContent = `◷ ${show.date}`; const placeText = document.createElement('span'); placeText.textContent = `⌖ ${show.location}`; meta.append(dateText, placeText); info.append(pill, heading, location, meta);
-      const link = document.createElement('a'); link.href = '#contact'; link.className = 'circle-link'; link.textContent = '↗'; link.setAttribute('aria-label', `Ask about ${show.name}`); card.append(date, info, link);
-      if (show.image) { const flyer = document.createElement('img'); flyer.src = show.image; flyer.alt = `${show.name} flyer`; flyer.className = 'show-flyer'; card.append(flyer); }
-      list.append(card);
-    });
+
   } catch { /* Keep the designed defaults when content storage is unavailable. */ }
 }
 loadContent();
-document.querySelector('#announcement-close').addEventListener('click', () => { document.querySelector('#event-announcement').hidden = true; });

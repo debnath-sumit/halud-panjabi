@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { scryptSync, randomBytes, randomUUID } from 'node:crypto';
 import sharp from 'sharp';
+import { createContentHandler } from '../api/content.js';
 import { createSessionHandler } from '../api/session.js';
 import { createMediaHandler } from '../api/media.js';
 import { createVideoUploadHandler, MAX_VIDEO_BYTES } from '../api/video-upload.js';
@@ -36,6 +37,8 @@ before(async () => {
   process.env.ADMIN_SESSION_SECRET = randomBytes(32).toString('hex');
   const session = createSessionHandler(async () => {});
   const media = createMediaHandler(store);
+  let contentState = { intro: {}, shows: [], overrides: {} };
+  const content = createContentHandler({ async getContent() { return structuredClone(contentState); }, async saveContent(value) { contentState = value; }, async putAsset() { return { url: 'https://example.com/flyer.webp' }; } });
   const videoUpload = createVideoUploadHandler({
     async issueSignedToken(options) { uploadPermissions.push(options); return { scoped: options.pathname }; },
     async presignUrl(token, options) {
@@ -49,7 +52,7 @@ before(async () => {
       return { presignedUrl: 'https://example.blob.vercel-storage.com/signed-upload' };
     },
   });
-  server = createServer((req, res) => req.url === '/api/session' ? session(req, res) : req.url === '/api/video-upload' ? videoUpload(req, res) : media(req, res));
+  server = createServer((req, res) => req.url === '/api/content' ? content(req, res) : req.url === '/api/session' ? session(req, res) : req.url === '/api/video-upload' ? videoUpload(req, res) : media(req, res));
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
   base = `http://127.0.0.1:${server.address().port}`;
   process.env.APP_ORIGIN = base;
@@ -73,6 +76,19 @@ test('admin workflow and access protection', async () => {
   assert.match(login.headers.get('set-cookie'), /HttpOnly; SameSite=Strict/);
   cookie = login.headers.get('set-cookie').split(';')[0];
   assert.deepEqual(await (await request('/api/session')).json(), { authenticated: true });
+  const flyerData = (await sharp({ create: { width: 10, height: 10, channels: 3, background: '#f6bf38' } }).png().toBuffer()).toString('base64');
+  const eventBody = { kind:'shows',name:'Dhak celebration',date:'2026-10-17',endDate:'2026-10-18',time:'16:00',location:'Tustin, CA',organisedBy:'Community',description:'Join us',performance:'Dhak at 4 PM',timeZone:'America/Los_Angeles',website:'https://example.com',imageData:flyerData };
+  const created = await request('/api/content','POST',eventBody); assert.equal(created.status,200);
+  const saved = (await created.json()).shows[0];
+  const { imageData, ...eventEdit } = eventBody;
+  const edited = await request('/api/content','PATCH',{...eventEdit,id:saved.id,description:'New description'}); assert.equal(edited.status,200);
+  const updated = (await edited.json()).shows[0]; assert.equal(updated.image,'https://example.com/flyer.webp'); assert.equal(updated.description,'New description'); assert.equal(updated.endDate,'2026-10-18');
+  for (const invalid of [{date:'2026-02-30'},{endDate:'2026-10-16'},{time:'29:00'},{website:'javascript:alert(1)'},{timeZone:'Not/AZone'}]) assert.equal((await request('/api/content','POST',{...eventEdit,...invalid})).status,400);
+  assert.equal((await request('/api/content','DELETE',{kind:'shows',id:saved.id})).status,200);
+  const audioSettings = await request('/api/content', 'PATCH', { kind: 'audio-settings', playSeconds: 15, fadeSeconds: 180 });
+  assert.equal(audioSettings.status, 200);
+  assert.deepEqual((await (await request('/api/content')).json()).audio, { playSeconds: 15, fadeSeconds: 180 });
+
 
   const clipBody = { title: 'ঢাকের তালে', size: MAX_VIDEO_BYTES, contentType: 'video/mp4', pathname: 'security/overwrite.json' };
   assert.equal((await request('/api/video-upload', 'GET')).status, 405);
